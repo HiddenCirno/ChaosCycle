@@ -1,11 +1,13 @@
 package com.chaoscycle.client;
 
 import com.chaoscycle.ChaosCycle;
+import com.chaoscycle.client.screen.CommandExecutorScreen;
 import com.chaoscycle.registry.ModItems;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -35,6 +37,17 @@ public final class ClientForgeEvents {
             } else if (stack.is(ModItems.HYPERSPACE_LOCATOR.get())) {
                 ClientScreens.openHyperspaceLocator(hand);
             }
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChatReceived(ClientChatReceivedEvent event) {
+        if (event.isSystem()) {
+            // 指令反馈已经通过 S2CCommandOutput 单独回传，避免在输出区重复。
+            return;
+        }
+        if (Minecraft.getInstance().screen instanceof CommandExecutorScreen screen) {
+            screen.appendChat(event.getMessage());
         }
     }
 

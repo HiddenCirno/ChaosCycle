@@ -1,5 +1,6 @@
 package com.chaoscycle.client.screen;
 
+import com.chaoscycle.ChaosCycle;
 import com.chaoscycle.client.gui.CommandLogWidget;
 import com.chaoscycle.network.C2SCommandTreeRequest;
 import com.chaoscycle.network.C2SExecuteCommand;
@@ -13,24 +14,29 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CommandSuggestions;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.ClientSuggestionProvider;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.GameType;
 import org.lwjgl.glfw.GLFW;
 
+import java.lang.reflect.Field;
 import java.util.List;
 
 /**
  * 聊天栏式的命令执行器界面。
  *
- * 输入部分刻意复用原版聊天框的行为：
- * EditBox（无边框）+ 原版 CommandSuggestions + 原版最近消息历史。
+ * 补全直接使用原版 {@link CommandSuggestions}，包括高亮、候选切换、鼠标选择、
+ * 使用提示等全部行为；只在界面打开期间把连接的 suggestion provider 换成一个
+ * "hasPermission(<=2) 恒为 true" 的子类，让选择器参数补全（@e[...]）也能工作。
+ * 不修改 LocalPlayer 的权限等级；关闭界面时把原 provider 换回。
  *
- * CommandSuggestions 的 Y 坐标是按原版聊天栏硬编码的
- * （anchorToBottom ? screen.height - 12 : 72），所以这里在布局完成后把
- * Screen.height 换成一个假值，让补全列表正好落在输入行上方；
- * 渲染背景时再临时恢复真实高度。补全的 X 仍然取自 EditBox 的真实坐标。
+ * 另外 CommandSuggestions 的 Y 坐标是按原版聊天栏硬编码的
+ * （anchorToBottom ? screen.height - 12 : 72），所以布局完成后把 Screen.height
+ * 换成假值，让列表落在输入行上方；渲染背景时再临时恢复真实高度。
  */
 public class CommandExecutorScreen extends Screen {
     // 418 + 8 边框 = 426，卡在 GUI Scale 2 的 427×240 逻辑分辨率内。
@@ -42,12 +48,15 @@ public class CommandExecutorScreen extends Screen {
     private static final int LOG_Y = 62;
     private static final int LOG_HEIGHT = 144;
     private static final int INPUT_Y = 210;
-    private static final int INPUT_BOX_Y = 206; // 输入行背景顶边，也是补全列表的底边
+    private static final int INPUT_BOX_Y = 206; // 输入行背景顶边，也是补全列表的下边界
     // 只保留生存 / 创造：旁观模式没有物品栏、右键也无 Item#use，
     // 误切进去后不容易回来，调试道具不做这个入口。
     private static final GameType[] GAME_MODES = {
             GameType.SURVIVAL, GameType.CREATIVE
     };
+
+    /** ClientPacketListener 里唯一一个 ClientSuggestionProvider 类型的字段。 */
+    private static final Field SUGGESTIONS_PROVIDER_FIELD = findSuggestionsProviderField();
 
     private final InteractionHand hand;
     private final Button[] gameModeButtons = new Button[GAME_MODES.length];
@@ -56,9 +65,13 @@ public class CommandExecutorScreen extends Screen {
     private CommandSuggestions commandSuggestions;
     private CommandLogWidget logWidget;
 
+    private ClientPacketListener patchedConnection;
+    private ClientSuggestionProvider originalSuggestionProvider;
+
     private String historyBuffer = "";
     private int historyPos;
     private int realHeight;
+    private boolean initialized;
 
     private int left;
     private int top;
@@ -70,8 +83,19 @@ public class CommandExecutorScreen extends Screen {
 
     @Override
     protected void init() {
-        // 进入 init 时 height 仍是真实值（Screen#init / Screen#resize 都会先写入真实尺寸）。
-        this.realHeight = this.height;
+        // 调整窗口大小会走 resize → rebuildWidgets → init()，同一次屏幕实例被重建。
+        // 先把输入内容和输出区内容存下来，重建后再恢复。
+        List<FormattedCharSequence> previousLog = this.logWidget == null
+                ? null : this.logWidget.snapshotLines();
+        int previousLogScroll = this.logWidget == null ? 0 : this.logWidget.getScrolledUp();
+        String previousValue = this.commandField == null ? "" : this.commandField.getValue();
+        int previousCursor = this.commandField == null ? 0 : this.commandField.getCursorPosition();
+        int previousHistoryPos = this.historyPos;
+        String previousHistoryBuffer = this.historyBuffer;
+        boolean firstInit = !this.initialized;
+
+        // 不要用 this.height：上一次布局后它被改成了补全用的假值。窗口缩放后的真实值从这里取。
+        this.realHeight = this.minecraft.getWindow().getGuiScaledHeight();
         this.left = (this.width - PANEL_WIDTH) / 2;
         this.top = (this.realHeight - PANEL_HEIGHT) / 2;
 
@@ -104,25 +128,53 @@ public class CommandExecutorScreen extends Screen {
 
         this.logWidget = this.addRenderableWidget(new CommandLogWidget(
                 this.left + 16, this.top + LOG_Y, 386, LOG_HEIGHT, Component.empty()));
-        this.logWidget.append(Component.translatable("gui.chaoscycle.command_executor.hint")
-                .withStyle(ChatFormatting.DARK_GRAY));
+        if (previousLog != null && !previousLog.isEmpty()) {
+            this.logWidget.restoreSnapshot(previousLog, previousLogScroll);
+        } else {
+            this.logWidget.append(Component.translatable("gui.chaoscycle.command_executor.hint")
+                    .withStyle(ChatFormatting.DARK_GRAY));
+        }
 
         // CommandSuggestions 的 Tab 补全要求 screen.getFocused() == input。
         this.setFocused(this.commandField);
+
+        // 界面打开期间把 suggestion provider 换成固定 2 级权限的版本。
+        // init() 可能因窗口缩放被再次调用：只在第一次替换时保存原 provider，
+        // 否则会把已经替换过的实例当成"原实例"存下来，关闭时无法恢复。
+        Minecraft minecraft = Minecraft.getInstance();
+        if (this.patchedConnection == null
+                && minecraft.player != null && minecraft.player.connection != null) {
+            this.patchedConnection = minecraft.player.connection;
+            this.originalSuggestionProvider = this.patchedConnection.getSuggestionsProvider();
+            setSuggestionProvider(this.patchedConnection,
+                    new FixedPermissionSuggestionProvider(this.patchedConnection, minecraft, 2));
+        }
 
         // 让原版补全列表的底边正好落在输入行上方：
         // showSuggestions 使用的 Y = screen.height - 12，SuggestionsList 再上移 3 + 行高。
         this.height = this.top + INPUT_BOX_Y + 15;
 
-        // commandsOnly=true：输入框里的内容始终按指令解析，不要求前导斜杠。
+        // commandsOnly=false：和原版聊天栏一样，只有以 / 开头时才按指令补全。
         this.commandSuggestions = new CommandSuggestions(this.minecraft, this, this.commandField,
-                this.font, true, false, 1, 10, true, -805306368);
+                this.font, false, false, 1, 10, true, -805306368);
         this.commandSuggestions.setAllowSuggestions(false);
         this.commandSuggestions.updateCommandInfo();
 
-        List<String> recent = this.minecraft.gui.getChat().getRecentChat();
-        this.historyPos = recent.size();
-        this.historyBuffer = "";
+        // 恢复缩放前正在输入的内容和光标位置。
+        if (!previousValue.isEmpty()) {
+            this.commandField.setValue(previousValue);
+            this.commandField.setCursorPosition(Math.min(previousCursor, previousValue.length()));
+            this.commandSuggestions.updateCommandInfo();
+        }
+
+        if (firstInit) {
+            this.historyPos = this.minecraft.gui.getChat().getRecentChat().size();
+            this.historyBuffer = "";
+        } else {
+            this.historyPos = previousHistoryPos;
+            this.historyBuffer = previousHistoryBuffer;
+        }
+        this.initialized = true;
 
         refreshGameModeButtons();
         ModNetwork.sendToServer(new C2SRequestExecutorState(this.hand.ordinal()));
@@ -132,6 +184,13 @@ public class CommandExecutorScreen extends Screen {
 
     @Override
     public void removed() {
+        if (this.patchedConnection != null && this.originalSuggestionProvider != null
+                && this.minecraft.player != null
+                && this.minecraft.player.connection == this.patchedConnection) {
+            setSuggestionProvider(this.patchedConnection, this.originalSuggestionProvider);
+        }
+        this.patchedConnection = null;
+        this.originalSuggestionProvider = null;
         ModNetwork.sendToServer(new C2SCommandTreeRequest(this.hand.ordinal(), false));
         super.removed();
     }
@@ -194,24 +253,37 @@ public class CommandExecutorScreen extends Screen {
     }
 
     private void execute() {
-        String command = this.commandField.getValue().strip();
-        if (command.isEmpty()) {
+        String input = this.commandField.getValue().strip();
+        if (input.isEmpty()) {
             if (this.logWidget != null) {
                 this.logWidget.append(Component.translatable("message.chaoscycle.command.empty")
                         .withStyle(ChatFormatting.RED));
             }
             return;
         }
-        if (this.logWidget != null) {
-            String shown = command.startsWith("/") ? command : "/" + command;
-            this.logWidget.append(Component.literal("> " + shown).withStyle(ChatFormatting.GRAY));
+        boolean isCommand = input.startsWith("/");
+        if (isCommand && this.logWidget != null) {
+            // 指令只回显命令行；执行结果由服务端 S2CCommandOutput 追加。
+            this.logWidget.append(Component.literal("> " + input).withStyle(ChatFormatting.GRAY));
         }
-        this.minecraft.gui.getChat().addRecentChat(command);
+        this.minecraft.gui.getChat().addRecentChat(input);
         this.historyPos = this.minecraft.gui.getChat().getRecentChat().size();
         this.historyBuffer = "";
         // 与原版聊天一致：执行后清空输入。
         this.commandField.setValue("");
-        ModNetwork.sendToServer(new C2SExecuteCommand(this.hand.ordinal(), command));
+        if (isCommand) {
+            ModNetwork.sendToServer(new C2SExecuteCommand(this.hand.ordinal(), input.substring(1)));
+        } else if (this.minecraft.player != null) {
+            // 普通文本走原版聊天；发送后服务端会广播回来，由 ClientChatReceivedEvent 追加到输出区。
+            this.minecraft.player.connection.sendChat(input);
+        }
+    }
+
+    /** 非系统聊天（玩家发言、/say 等）实时追加到输出区，使这里像一个聊天终端。 */
+    public void appendChat(Component message) {
+        if (this.logWidget != null && message != null) {
+            this.logWidget.append(message);
+        }
     }
 
     /** 服务端把 sendSuccess / sendFailure 的文本抄送回来，按聊天栏方式追加到输出区。 */
@@ -265,7 +337,7 @@ public class CommandExecutorScreen extends Screen {
         graphics.drawString(this.font, ">", this.left + 16, this.top + INPUT_Y - 1, 0xFFAAAAAA, false);
         this.commandField.render(graphics, mouseX, mouseY, partialTick);
 
-        // 补全/用法提示最后画，盖在输出区与输入行之上。
+        // 原版补全/用法提示最后画，盖在输出区与输入行之上。
         this.commandSuggestions.render(graphics, mouseX, mouseY);
     }
 
@@ -334,5 +406,54 @@ public class CommandExecutorScreen extends Screen {
     @Override
     public void onClose() {
         Minecraft.getInstance().setScreen(null);
+    }
+
+    // ------------------------------------------------------------
+    // 固定权限的 suggestion provider
+    // ------------------------------------------------------------
+
+    /**
+     * 只覆盖权限判断：2 级及以下一律返回 true，其余交给原 provider。
+     * 用于通过 EntityArgument.listSuggestions → ForgeHooks.canUseEntitySelectors 的检查。
+     */
+    private static final class FixedPermissionSuggestionProvider extends ClientSuggestionProvider {
+        private final int fixedLevel;
+
+        private FixedPermissionSuggestionProvider(ClientPacketListener connection, Minecraft minecraft,
+                                                  int fixedLevel) {
+            super(connection, minecraft);
+            this.fixedLevel = fixedLevel;
+        }
+
+        @Override
+        public boolean hasPermission(int level) {
+            return level <= this.fixedLevel || super.hasPermission(level);
+        }
+    }
+
+    private static Field findSuggestionsProviderField() {
+        for (Field field : ClientPacketListener.class.getDeclaredFields()) {
+            if (ClientSuggestionProvider.class.isAssignableFrom(field.getType())) {
+                try {
+                    field.setAccessible(true);
+                    return field;
+                } catch (RuntimeException exception) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void setSuggestionProvider(ClientPacketListener connection, ClientSuggestionProvider provider) {
+        if (SUGGESTIONS_PROVIDER_FIELD == null) {
+            ChaosCycle.LOGGER.warn("ClientPacketListener suggestion provider field not found");
+            return;
+        }
+        try {
+            SUGGESTIONS_PROVIDER_FIELD.set(connection, provider);
+        } catch (ReflectiveOperationException exception) {
+            ChaosCycle.LOGGER.warn("Failed to swap client suggestion provider", exception);
+        }
     }
 }

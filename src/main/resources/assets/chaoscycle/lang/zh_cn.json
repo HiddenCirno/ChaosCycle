@@ -2,7 +2,7 @@
   "item.chaoscycle.command_executor": "便携式命令执行器",
   "item.chaoscycle.hyperspace_locator": "便携式超空间定位器",
 
-  "tooltip.chaoscycle.command_executor.desc": "调试用命令控制台，两个按钮切换游戏模式。",
+  "tooltip.chaoscycle.command_executor.desc": "调试用控制台兼聊天框，两个按钮切换游戏模式。",
   "tooltip.chaoscycle.command_executor.modes": "生存 / 创造",
   "tooltip.chaoscycle.command_executor.command_level": "指令固定以 2 级权限执行（最高 2 级）。",
   "tooltip.chaoscycle.hyperspace_locator.desc": "存储一组包含维度的坐标，无需燃料。",
@@ -15,10 +15,10 @@
   "gui.chaoscycle.gamemode.survival": "生存",
   "gui.chaoscycle.gamemode.creative": "创造",
   "gui.chaoscycle.command.label": "指令",
-  "gui.chaoscycle.command.hint": "输入指令，不需要前导斜杠",
+  "gui.chaoscycle.command.hint": "输入聊天内容；以 / 开头执行指令",
   "gui.chaoscycle.execute": "执行",
   "gui.chaoscycle.command_executor.output": "输出",
-  "gui.chaoscycle.command_executor.hint": "指令固定以 2 级权限执行（最高 2 级）。",
+  "gui.chaoscycle.command_executor.hint": "普通文本作为聊天发送；以 / 开头执行 2 级权限指令（最高 2 级）。",
 
   "gui.chaoscycle.locator.title": "便携式超空间定位器",
   "gui.chaoscycle.locator.list": "坐标列表",
@@ -35,7 +35,7 @@
 
   "message.chaoscycle.not_holding_executor": "你手上没有便携式命令执行器。",
   "message.chaoscycle.not_holding_locator": "你手上没有便携式超空间定位器。",
-  "message.chaoscycle.command.empty": "指令为空。",
+  "message.chaoscycle.command.empty": "输入为空。",
   "message.chaoscycle.command.too_long": "指令过长（最多 256 个字符）。",
   "message.chaoscycle.command.sent": "指令已发送。",
   "message.chaoscycle.command.result": "指令执行完成，返回值 %s。",

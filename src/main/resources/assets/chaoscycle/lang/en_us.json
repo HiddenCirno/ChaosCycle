@@ -2,7 +2,7 @@
   "item.chaoscycle.command_executor": "Portable Command Executor",
   "item.chaoscycle.hyperspace_locator": "Portable Hyperspace Locator",
 
-  "tooltip.chaoscycle.command_executor.desc": "Debug console. Two buttons switch your game mode.",
+  "tooltip.chaoscycle.command_executor.desc": "Debug console and chat box. Two buttons switch your game mode.",
   "tooltip.chaoscycle.command_executor.modes": "Survival / Creative",
   "tooltip.chaoscycle.command_executor.command_level": "Commands run at permission level 2 (max 2).",
   "tooltip.chaoscycle.hyperspace_locator.desc": "Stores a list of dimension-aware coordinates. No fuel required.",
@@ -15,10 +15,10 @@
   "gui.chaoscycle.gamemode.survival": "Survival",
   "gui.chaoscycle.gamemode.creative": "Creative",
   "gui.chaoscycle.command.label": "Command",
-  "gui.chaoscycle.command.hint": "Enter a command without the leading slash",
+  "gui.chaoscycle.command.hint": "Chat, or start with / to run a command",
   "gui.chaoscycle.execute": "Execute",
   "gui.chaoscycle.command_executor.output": "Output",
-  "gui.chaoscycle.command_executor.hint": "Commands run at permission level 2 (max 2).",
+  "gui.chaoscycle.command_executor.hint": "Plain text is sent as chat; prefix with / to run a level-2 command (max 2).",
 
   "gui.chaoscycle.locator.title": "Portable Hyperspace Locator",
   "gui.chaoscycle.locator.list": "Coordinates",
@@ -35,7 +35,7 @@
 
   "message.chaoscycle.not_holding_executor": "You are not holding the Portable Command Executor.",
   "message.chaoscycle.not_holding_locator": "You are not holding the Portable Hyperspace Locator.",
-  "message.chaoscycle.command.empty": "Command is empty.",
+  "message.chaoscycle.command.empty": "Input is empty.",
   "message.chaoscycle.command.too_long": "Command is too long (max 256 characters).",
   "message.chaoscycle.command.sent": "Command sent.",
   "message.chaoscycle.command.result": "Command finished with result %s.",

@@ -43,6 +43,21 @@ public class CommandLogWidget extends AbstractWidget {
         this.scrolledUp = 0;
     }
 
+    /** 窗口缩放会重建控件；用快照把已有输出带到新实例。 */
+    public List<FormattedCharSequence> snapshotLines() {
+        return new ArrayList<>(this.lines);
+    }
+
+    public int getScrolledUp() {
+        return this.scrolledUp;
+    }
+
+    public void restoreSnapshot(List<FormattedCharSequence> snapshot, int scroll) {
+        this.lines.clear();
+        this.lines.addAll(snapshot);
+        this.scrolledUp = Math.max(0, scroll);
+    }
+
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         graphics.fill(getX(), getY(), getX() + width, getY() + height, COLOR_BG);
