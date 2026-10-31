@@ -1,5 +1,6 @@
 package com.chaoscycle.client.gui;
 
+import com.chaoscycle.client.DimensionNames;
 import com.chaoscycle.network.WaypointEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -14,17 +15,13 @@ import java.util.Locale;
 import java.util.function.IntConsumer;
 
 /**
- * 简易可滚动坐标列表。行高固定，选中行高亮。
+ * 超空间定位器坐标列表：229x107 视口，5 行 x 20px，行距 1px，无滚动条，滚轮翻动。
+ * 行背景来自图集（普通/选中/悬浮），文字由代码绘制。
  */
 public class WaypointListWidget extends AbstractWidget {
-    private static final int ROW_HEIGHT = 14;
-    private static final int MAX_VISIBLE = 7;
-    private static final int COLOR_FRAME = 0xFF6B6B6B;
-    private static final int COLOR_BG = 0xFF101010;
-    private static final int COLOR_HOVER = 0xFF303030;
-    private static final int COLOR_TEXT = 0xFFE0E0E0;
-    private static final int COLOR_SELECTED = 0xFF55FFFF;
-    private static final int COLOR_EMPTY = 0xFF777777;
+    private static final int COLOR_TEXT = 0xFFE4E4E4;
+    private static final int COLOR_SELECTED = 0xFFFFFFFF;
+    private static final int COLOR_EMPTY = 0xFF8A8A8A;
 
     private List<WaypointEntry> entries = new ArrayList<>();
     private int selected = -1;
@@ -72,56 +69,73 @@ public class WaypointListWidget extends AbstractWidget {
         ensureVisible();
     }
 
+    /** 删除条目后释放选中，避免后续操作落在下一条上。 */
+    public void clearSelection() {
+        this.selected = -1;
+    }
+
     public void setOnSelect(IntConsumer onSelect) {
         this.onSelect = onSelect;
     }
 
+    private int rowY(int visibleRow) {
+        return getY() + LocatorGui.ROW_TOP_OFFSET + visibleRow * LocatorGui.ROW_PITCH;
+    }
+
+    private int rowAt(double mouseX, double mouseY) {
+        if (mouseX < getX() || mouseX >= getX() + width) {
+            return -1;
+        }
+        for (int row = 0; row < LocatorGui.VISIBLE_ROWS; row++) {
+            int y = rowY(row);
+            if (mouseY >= y && mouseY < y + LocatorGui.ROW_HEIGHT) {
+                int index = this.scroll + row;
+                return index < entries.size() ? index : -1;
+            }
+        }
+        return -1;
+    }
+
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        Font font = Minecraft.getInstance().font;
-
-        graphics.fill(getX(), getY(), getX() + width, getY() + height, COLOR_BG);
-        graphics.fill(getX(), getY(), getX() + width, getY() + 1, COLOR_FRAME);
-        graphics.fill(getX(), getY() + height - 1, getX() + width, getY() + height, COLOR_FRAME);
-        graphics.fill(getX(), getY(), getX() + 1, getY() + height, COLOR_FRAME);
-        graphics.fill(getX() + width - 1, getY(), getX() + width, getY() + height, COLOR_FRAME);
-
         if (entries.isEmpty()) {
+            Font font = Minecraft.getInstance().font;
             graphics.drawString(font, Component.translatable("gui.chaoscycle.locator.empty_list"),
-                    getX() + 6, getY() + 6, COLOR_EMPTY, false);
+                    getX() + 8, getY() + 8, COLOR_EMPTY, false);
             return;
         }
 
-        int visible = Math.min(entries.size(), MAX_VISIBLE);
-        for (int row = 0; row < visible; row++) {
-            int index = scroll + row;
+        Font font = Minecraft.getInstance().font;
+        for (int row = 0; row < LocatorGui.VISIBLE_ROWS; row++) {
+            int index = this.scroll + row;
             if (index >= entries.size()) {
                 break;
             }
-            int rowY = getY() + 1 + row * ROW_HEIGHT;
-            boolean hovered = mouseX >= getX() + 1 && mouseX < getX() + width - 1
-                    && mouseY >= rowY && mouseY < rowY + ROW_HEIGHT;
-            if (hovered) {
-                graphics.fill(getX() + 1, rowY, getX() + width - 1, rowY + ROW_HEIGHT, COLOR_HOVER);
+            int y = rowY(row);
+            boolean hovered = mouseX >= getX() && mouseX < getX() + width
+                    && mouseY >= y && mouseY < y + LocatorGui.ROW_HEIGHT;
+            int v;
+            if (index == this.selected) {
+                v = LocatorGui.ROW_SELECTED_V;
+            } else if (hovered) {
+                v = LocatorGui.ROW_HOVER_V;
+            } else {
+                v = LocatorGui.ROW_NORMAL_V;
             }
-            if (index == selected) {
-                graphics.fill(getX() + 1, rowY, getX() + 3, rowY + ROW_HEIGHT, COLOR_SELECTED);
-            }
+            graphics.blit(LocatorGui.TEXTURE, getX(), y, 0, v,
+                    LocatorGui.ROW_WIDTH, LocatorGui.ROW_HEIGHT,
+                    LocatorGui.TEXTURE_WIDTH, LocatorGui.TEXTURE_HEIGHT);
+
             WaypointEntry entry = entries.get(index);
+            String dimension = DimensionNames.displayName(entry.dimension());
             String text = entry.name().isBlank()
                     ? String.format(Locale.ROOT, "#%d %s @ %.0f, %.0f, %.0f",
-                    index + 1, entry.dimension(), entry.x(), entry.y(), entry.z())
+                    index + 1, dimension, entry.x(), entry.y(), entry.z())
                     : String.format(Locale.ROOT, "#%d %s · %s",
-                    index + 1, entry.name(), entry.dimension());
-            graphics.drawString(font, font.plainSubstrByWidth(text, width - 10),
-                    getX() + 5, rowY + 3,
-                    index == selected ? COLOR_SELECTED : COLOR_TEXT, false);
-        }
-
-        if (entries.size() > MAX_VISIBLE) {
-            int barHeight = Math.max(8, (height - 2) * MAX_VISIBLE / entries.size());
-            int barY = getY() + 1 + (height - 2 - barHeight) * scroll / Math.max(1, entries.size() - MAX_VISIBLE);
-            graphics.fill(getX() + width - 4, barY, getX() + width - 2, barY + barHeight, 0xFF505050);
+                    index + 1, entry.name(), dimension);
+            graphics.drawString(font, font.plainSubstrByWidth(text, width - 12),
+                    getX() + 6, y + 6,
+                    index == this.selected ? COLOR_SELECTED : COLOR_TEXT, false);
         }
     }
 
@@ -130,31 +144,28 @@ public class WaypointListWidget extends AbstractWidget {
         if (button != 0 || !active || !visible || entries.isEmpty()) {
             return false;
         }
-        if (mouseX < getX() || mouseX >= getX() + width || mouseY < getY() || mouseY >= getY() + height) {
+        int index = rowAt(mouseX, mouseY);
+        if (index < 0) {
             return false;
         }
-        int row = (int) ((mouseY - getY() - 1) / ROW_HEIGHT);
-        int index = scroll + row;
-        if (index >= 0 && index < entries.size()) {
-            selected = index;
-            ensureVisible();
-            onSelect.accept(index);
-            playDownSound(Minecraft.getInstance().getSoundManager());
-            return true;
-        }
-        return false;
+        this.selected = index;
+        ensureVisible();
+        onSelect.accept(index);
+        playDownSound(Minecraft.getInstance().getSoundManager());
+        return true;
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (entries.size() <= MAX_VISIBLE) {
+        if (entries.size() <= LocatorGui.VISIBLE_ROWS) {
             return false;
         }
-        if (mouseX < getX() || mouseX >= getX() + width || mouseY < getY() || mouseY >= getY() + height) {
+        if (mouseX < getX() || mouseX >= getX() + width
+                || mouseY < getY() || mouseY >= getY() + height) {
             return false;
         }
         int direction = delta > 0 ? -1 : 1;
-        scroll = Math.max(0, Math.min(entries.size() - MAX_VISIBLE, scroll + direction));
+        scroll = Math.max(0, Math.min(entries.size() - LocatorGui.VISIBLE_ROWS, scroll + direction));
         return true;
     }
 
@@ -165,10 +176,11 @@ public class WaypointListWidget extends AbstractWidget {
         }
         if (selected < scroll) {
             scroll = selected;
-        } else if (selected >= scroll + MAX_VISIBLE) {
-            scroll = selected - MAX_VISIBLE + 1;
+        } else if (selected >= scroll + LocatorGui.VISIBLE_ROWS) {
+            scroll = selected - LocatorGui.VISIBLE_ROWS + 1;
         }
-        scroll = Math.max(0, Math.min(scroll, Math.max(0, entries.size() - MAX_VISIBLE)));
+        scroll = Math.max(0, Math.min(scroll,
+                Math.max(0, entries.size() - LocatorGui.VISIBLE_ROWS)));
     }
 
     @Override

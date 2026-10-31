@@ -1,5 +1,7 @@
 package com.chaoscycle.client.screen;
 
+import com.chaoscycle.client.gui.LocatorButton;
+import com.chaoscycle.client.gui.LocatorGui;
 import com.chaoscycle.client.gui.WaypointListWidget;
 import com.chaoscycle.item.HyperspaceLocatorItem;
 import com.chaoscycle.network.C2SAddWaypoint;
@@ -12,20 +14,46 @@ import com.chaoscycle.network.S2CLocatorState;
 import com.chaoscycle.network.WaypointEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 超空间定位器界面。
+ *
+ * 全部控件按 424x226 的虚拟坐标系布局，渲染时整体缩放 {@link #SCALE}，
+ * 这样可以在不重排贴图坐标的前提下把 GUI 缩小到合适大小。
+ */
 public class HyperspaceLocatorScreen extends Screen {
-    // 控制在 427×240 的逻辑分辨率内（GUI Scale 2 下的 854×480 窗口）。
-    private static final int PANEL_WIDTH = 410;
-    private static final int PANEL_HEIGHT = 228;
+    /** 整体显示比例；1.0 等于原始纹理像素，大小交给 MC 自身的 GUI Scale 决定。 */
+    private static final float SCALE = 1.0F;
+
+    // 新纹理把列表顶边上移了 1px：视口从 24..130 变成 25..130（106 高）。
+    // 5x20 行 + 4x1 间隔，上下各留 1px，视觉上对齐。
+    private static final int LIST_X = 9;
+    private static final int LIST_Y = 25;
+    private static final int LIST_W = 229;
+    private static final int LIST_H = 106;
+    private static final int NAME_LABEL_X = 245;
+    private static final int NAME_LABEL_Y = 27;
+    private static final int NAME_X = 245;
+    private static final int NAME_Y = 39;
+    private static final int NAME_W = 173;
+    private static final int NAME_H = 21;
+    private static final int COORD_Y = 81;       // 输入框上移 1px 后的位置
+    private static final int COORD_W = 56;
+    private static final int COORD_H = 19;
+    private static final int[] COORD_X = {245, 304, 363};
+    private static final int LABEL_Y = 69;
+    private static final int TEXT_LEFT = 8;
+    private static final int TEXT_TOP = 188;
+    private static final int TEXT_WIDTH = 348;   // 右边界与最右侧大按钮对齐（355）
 
     private final InteractionHand hand;
     private WaypointListWidget waypointList;
@@ -33,9 +61,9 @@ public class HyperspaceLocatorScreen extends Screen {
     private EditBox xField;
     private EditBox yField;
     private EditBox zField;
-    private Button updateButton;
-    private Button teleportButton;
-    private Button removeButton;
+    private LocatorButton updateButton;
+    private LocatorButton teleportButton;
+    private LocatorButton removeButton;
     private Component status = Component.empty();
 
     private List<WaypointEntry> waypoints = List.of();
@@ -51,8 +79,10 @@ public class HyperspaceLocatorScreen extends Screen {
 
     @Override
     protected void init() {
-        this.left = (this.width - PANEL_WIDTH) / 2;
-        this.top = (this.height - PANEL_HEIGHT) / 2;
+        int scaledWidth = Math.round(LocatorGui.BODY_WIDTH * SCALE);
+        int scaledHeight = Math.round(LocatorGui.BODY_HEIGHT * SCALE);
+        this.left = (this.width - scaledWidth) / 2;
+        this.top = (this.height - scaledHeight) / 2;
 
         Player player = Minecraft.getInstance().player;
         double px = player == null ? 0.0D : player.getX();
@@ -60,50 +90,50 @@ public class HyperspaceLocatorScreen extends Screen {
         double pz = player == null ? 0.0D : player.getZ();
 
         this.waypointList = this.addRenderableWidget(new WaypointListWidget(
-                this.left + 12, this.top + 38, 220, 114, Component.empty()));
+                LIST_X, LIST_Y, LIST_W, LIST_H, Component.empty()));
         this.waypointList.setOnSelect(index -> loadSelected());
 
-        this.nameField = this.addRenderableWidget(new EditBox(this.font,
-                this.left + 244, this.top + 46, 166, 20,
-                Component.translatable("gui.chaoscycle.locator.name_hint")));
-        this.nameField.setMaxLength(32);
-        this.nameField.setHint(Component.translatable("gui.chaoscycle.locator.name_hint"));
+        this.nameField = createField(NAME_X + 4, NAME_Y + 7, NAME_W - 8, 12, 32);
 
-        this.xField = this.addRenderableWidget(new EditBox(this.font,
-                this.left + 244, this.top + 84, 50, 20, Component.literal("X")));
-        this.xField.setMaxLength(32);
+        this.xField = createField(COORD_X[0] + 4, COORD_Y + 6, COORD_W - 8, 12, 32);
         this.xField.setValue(format(px));
-
-        this.yField = this.addRenderableWidget(new EditBox(this.font,
-                this.left + 302, this.top + 84, 50, 20, Component.literal("Y")));
-        this.yField.setMaxLength(32);
+        this.yField = createField(COORD_X[1] + 4, COORD_Y + 6, COORD_W - 8, 12, 32);
         this.yField.setValue(format(py));
-
-        this.zField = this.addRenderableWidget(new EditBox(this.font,
-                this.left + 360, this.top + 84, 50, 20, Component.literal("Z")));
-        this.zField.setMaxLength(32);
+        this.zField = createField(COORD_X[2] + 4, COORD_Y + 6, COORD_W - 8, 12, 32);
         this.zField.setValue(format(pz));
 
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.chaoscycle.locator.current"),
-                button -> useCurrent()).bounds(this.left + 244, this.top + 112, 76, 20).build());
+        this.addRenderableWidget(new LocatorButton(244, 108, false,
+                Component.translatable("gui.chaoscycle.locator.current"), this::useCurrent));
+        this.updateButton = this.addRenderableWidget(new LocatorButton(335, 108, false,
+                Component.translatable("gui.chaoscycle.locator.update"), this::updateSelected));
 
-        this.updateButton = this.addRenderableWidget(Button.builder(
-                Component.translatable("gui.chaoscycle.locator.update"),
-                button -> updateSelected()).bounds(this.left + 326, this.top + 112, 84, 20).build());
-
-        this.addRenderableWidget(Button.builder(Component.translatable("gui.chaoscycle.locator.add_current"),
-                button -> addCurrent()).bounds(this.left + 12, this.top + 158, 104, 20).build());
-
-        this.teleportButton = this.addRenderableWidget(Button.builder(
-                Component.translatable("gui.chaoscycle.locator.teleport"),
-                button -> teleportSelected()).bounds(this.left + 122, this.top + 158, 84, 20).build());
-
-        this.removeButton = this.addRenderableWidget(Button.builder(
-                Component.translatable("gui.chaoscycle.locator.remove"),
-                button -> removeSelected()).bounds(this.left + 212, this.top + 158, 84, 20).build());
+        this.addRenderableWidget(new LocatorButton(8, 163, true,
+                Component.translatable("gui.chaoscycle.locator.add_current"), this::addCurrent));
+        this.teleportButton = this.addRenderableWidget(new LocatorButton(127, 163, true,
+                Component.translatable("gui.chaoscycle.locator.teleport"), this::teleportSelected));
+        this.removeButton = this.addRenderableWidget(new LocatorButton(246, 163, true,
+                Component.translatable("gui.chaoscycle.locator.remove"), this::removeSelected));
 
         setSelectionButtons(false);
         ModNetwork.sendToServer(new C2SRequestLocatorState(this.hand.ordinal()));
+    }
+
+    /** 虚拟坐标（面板左上角为 0,0）；无边框 EditBox 覆盖在贴图字段上。 */
+    private EditBox createField(int x, int y, int width, int height, int maxLength) {
+        EditBox field = this.addRenderableWidget(new EditBox(this.font,
+                x, y, width, height, Component.empty()));
+        field.setBordered(false);
+        field.setMaxLength(maxLength);
+        field.setTextColor(0xFFF0F0F0);
+        return field;
+    }
+
+    private double toVirtualX(double mouseX) {
+        return (mouseX - this.left) / SCALE;
+    }
+
+    private double toVirtualY(double mouseY) {
+        return (mouseY - this.top) / SCALE;
     }
 
     public void applyState(S2CLocatorState state) {
@@ -113,6 +143,14 @@ public class HyperspaceLocatorScreen extends Screen {
         }
         this.waypoints = state.waypoints();
         this.waypointList.setEntries(this.waypoints);
+
+        if (state.clearSelection()) {
+            // 删除成功：释放选中，禁用修改/传送/删除，避免连续点击误操作。
+            this.waypointList.clearSelection();
+            this.pendingSelectLast = false;
+            setSelectionButtons(false);
+            return;
+        }
 
         if (this.waypoints.isEmpty()) {
             setSelectionButtons(false);
@@ -238,32 +276,57 @@ public class HyperspaceLocatorScreen extends Screen {
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         this.renderBackground(graphics);
-        graphics.fill(this.left - 4, this.top - 4,
-                this.left + PANEL_WIDTH + 4, this.top + PANEL_HEIGHT + 4, 0xCC101010);
-        graphics.fill(this.left - 4, this.top - 4,
-                this.left + PANEL_WIDTH + 4, this.top - 3, 0xFF5A5A5A);
-        graphics.fill(this.left - 4, this.top + PANEL_HEIGHT + 3,
-                this.left + PANEL_WIDTH + 4, this.top + PANEL_HEIGHT + 4, 0xFF5A5A5A);
+        graphics.pose().pushPose();
+        graphics.pose().translate(this.left, this.top, 0.0F);
+        graphics.pose().scale(SCALE, SCALE, 1.0F);
 
-        graphics.drawString(this.font, this.title, this.left + 12, this.top + 10, 0xFFFFFF, false);
-        graphics.drawString(this.font, Component.translatable("gui.chaoscycle.locator.list"),
-                this.left + 12, this.top + 26, 0xAAAAAA, false);
+        graphics.blit(LocatorGui.TEXTURE, 0, 0, 0, 0,
+                LocatorGui.BODY_WIDTH, LocatorGui.BODY_HEIGHT,
+                LocatorGui.TEXTURE_WIDTH, LocatorGui.TEXTURE_HEIGHT);
+
+        // 除左上角标题外，所有文字都由代码绘制。
         graphics.drawString(this.font, Component.translatable("gui.chaoscycle.locator.name"),
-                this.left + 244, this.top + 34, 0xAAAAAA, false);
-        graphics.drawString(this.font, "X", this.left + 244, this.top + 73, 0xAAAAAA, false);
-        graphics.drawString(this.font, "Y", this.left + 302, this.top + 73, 0xAAAAAA, false);
-        graphics.drawString(this.font, "Z", this.left + 360, this.top + 73, 0xAAAAAA, false);
+                NAME_LABEL_X, NAME_LABEL_Y, 0xFFD8D8D8, false);
+        graphics.drawString(this.font, "X", COORD_X[0], LABEL_Y, 0xFFD8D8D8, false);
+        graphics.drawString(this.font, "Y", COORD_X[1], LABEL_Y, 0xFFD8D8D8, false);
+        graphics.drawString(this.font, "Z", COORD_X[2], LABEL_Y, 0xFFD8D8D8, false);
 
-        super.render(graphics, mouseX, mouseY, partialTick);
+        super.render(graphics, (int) toVirtualX(mouseX), (int) toVirtualY(mouseY), partialTick);
 
-        graphics.drawString(this.font, this.status, this.left + 12, this.top + 186, 0xFFFF80, false);
-        List<net.minecraft.util.FormattedCharSequence> hintLines = this.font.split(
-                Component.translatable("gui.chaoscycle.locator.hint"), PANEL_WIDTH - 24);
-        int hintY = this.top + 202;
+        graphics.drawString(this.font, this.status, TEXT_LEFT, TEXT_TOP + 1, 0xFFFF80, false);
+        List<FormattedCharSequence> hintLines = this.font.split(
+                Component.translatable("gui.chaoscycle.locator.hint"), TEXT_WIDTH);
         for (int i = 0; i < Math.min(2, hintLines.size()); i++) {
-            graphics.drawString(this.font, hintLines.get(i), this.left + 12, hintY + i * 10,
-                    0x888888, false);
+            graphics.drawString(this.font, hintLines.get(i), TEXT_LEFT, TEXT_TOP + 14 + i * 10,
+                    0xFF909090, false);
         }
+
+        graphics.pose().popPose();
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        return super.mouseClicked(toVirtualX(mouseX), toVirtualY(mouseY), button);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        return super.mouseReleased(toVirtualX(mouseX), toVirtualY(mouseY), button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mouseX, double mouseY, int button, double dragX, double dragY) {
+        return super.mouseDragged(toVirtualX(mouseX), toVirtualY(mouseY), button, dragX, dragY);
+    }
+
+    @Override
+    public void mouseMoved(double mouseX, double mouseY) {
+        super.mouseMoved(toVirtualX(mouseX), toVirtualY(mouseY));
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        return super.mouseScrolled(toVirtualX(mouseX), toVirtualY(mouseY), delta);
     }
 
     @Override

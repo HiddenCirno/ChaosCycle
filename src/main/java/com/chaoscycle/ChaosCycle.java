@@ -32,7 +32,7 @@ public final class ChaosCycle {
     }
 
     private void addCreativeTabContents(BuildCreativeModeTabContentsEvent event) {
-        if (event.getTabKey() == CreativeModeTabs.OP_BLOCKS) {
+        if (event.getTabKey() == CreativeModeTabs.TOOLS_AND_UTILITIES) {
             event.accept(new ItemStack(ModItems.COMMAND_EXECUTOR.get()),
                     CreativeModeTab.TabVisibility.PARENT_AND_SEARCH_TABS);
             event.accept(new ItemStack(ModItems.HYPERSPACE_LOCATOR.get()),

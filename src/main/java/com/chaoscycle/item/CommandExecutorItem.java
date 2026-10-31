@@ -37,9 +37,5 @@ public class CommandExecutorItem extends Item {
                 .withStyle(ChatFormatting.DARK_AQUA));
         tooltip.add(Component.translatable("tooltip.chaoscycle.command_executor.command_level")
                 .withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("tooltip.chaoscycle.debug_item")
-                .withStyle(ChatFormatting.DARK_RED));
-        tooltip.add(Component.translatable("tooltip.chaoscycle.open_key")
-                .withStyle(ChatFormatting.DARK_GRAY));
     }
 }

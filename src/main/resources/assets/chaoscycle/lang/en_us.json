@@ -2,13 +2,13 @@
   "item.chaoscycle.command_executor": "Portable Command Executor",
   "item.chaoscycle.hyperspace_locator": "Portable Hyperspace Locator",
 
+  "dimension.minecraft.overworld": "Overworld",
+  "dimension.minecraft.the_nether": "The Nether",
+  "dimension.minecraft.the_end": "The End",
+
   "tooltip.chaoscycle.command_executor.desc": "Debug console and chat box. Two buttons switch your game mode.",
   "tooltip.chaoscycle.command_executor.modes": "Survival / Creative",
   "tooltip.chaoscycle.command_executor.command_level": "Commands run at permission level 2 (max 2).",
-  "tooltip.chaoscycle.hyperspace_locator.desc": "Stores a list of dimension-aware coordinates. No fuel required.",
-  "tooltip.chaoscycle.hyperspace_locator.shared": "Coordinates are stored on you, so switching items will not lose them.",
-  "tooltip.chaoscycle.debug_item": "Debug item - uncraftable.",
-  "tooltip.chaoscycle.open_key": "Right-click to open (default keybind: V).",
 
   "gui.chaoscycle.command_executor.title": "Portable Command Executor",
   "gui.chaoscycle.mode.label": "Game Mode",

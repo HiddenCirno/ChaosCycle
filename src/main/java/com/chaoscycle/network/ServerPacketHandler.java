@@ -270,11 +270,15 @@ public final class ServerPacketHandler {
     }
 
     private static void sendLocatorState(ServerPlayer player) {
+        sendLocatorState(player, false);
+    }
+
+    private static void sendLocatorState(ServerPlayer player, boolean clearSelection) {
         List<WaypointEntry> entries = LocatorData.read(player).stream()
                 .map(waypoint -> new WaypointEntry(waypoint.name(), waypoint.dimension(),
                         waypoint.x(), waypoint.y(), waypoint.z(), waypoint.yaw(), waypoint.pitch()))
                 .toList();
-        ModNetwork.sendToPlayer(player, new S2CLocatorState(entries));
+        ModNetwork.sendToPlayer(player, new S2CLocatorState(entries, clearSelection));
     }
 
     private static String sanitizeName(String name) {
@@ -384,7 +388,8 @@ public final class ServerPacketHandler {
         LocatorData.write(player, waypoints);
 
         statusKey(player, "message.chaoscycle.waypoint_removed", index + 1);
-        sendLocatorState(player);
+        // 删除成功后让客户端释放选中，避免连续点删除误删下一条。
+        sendLocatorState(player, true);
     }
 
     public static void handleTeleportWaypoint(ServerPlayer player, int handOrdinal, int index) {

@@ -2,13 +2,13 @@
   "item.chaoscycle.command_executor": "便携式命令执行器",
   "item.chaoscycle.hyperspace_locator": "便携式超空间定位器",
 
+  "dimension.minecraft.overworld": "主世界",
+  "dimension.minecraft.the_nether": "下界",
+  "dimension.minecraft.the_end": "末地",
+
   "tooltip.chaoscycle.command_executor.desc": "调试用控制台兼聊天框，两个按钮切换游戏模式。",
   "tooltip.chaoscycle.command_executor.modes": "生存 / 创造",
   "tooltip.chaoscycle.command_executor.command_level": "指令固定以 2 级权限执行（最高 2 级）。",
-  "tooltip.chaoscycle.hyperspace_locator.desc": "存储一组包含维度的坐标，无需燃料。",
-  "tooltip.chaoscycle.hyperspace_locator.shared": "坐标保存在玩家身上，换一把定位器也不会丢。",
-  "tooltip.chaoscycle.debug_item": "调试道具 · 无法合成。",
-  "tooltip.chaoscycle.open_key": "右键打开（默认快捷键：V）。",
 
   "gui.chaoscycle.command_executor.title": "便携式命令执行器",
   "gui.chaoscycle.mode.label": "游戏模式",

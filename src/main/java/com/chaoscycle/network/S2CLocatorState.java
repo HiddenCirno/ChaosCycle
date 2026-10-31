@@ -9,9 +9,13 @@ import net.minecraftforge.network.NetworkEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-public record S2CLocatorState(List<WaypointEntry> waypoints) {
+/**
+ * clearSelection 只会在删除成功后为 true，客户端据此释放列表选中，
+ * 避免连续点击删除误删下一条。
+ */
+public record S2CLocatorState(List<WaypointEntry> waypoints, boolean clearSelection) {
     public S2CLocatorState(FriendlyByteBuf buf) {
-        this(readWaypoints(buf));
+        this(readWaypoints(buf), buf.readBoolean());
     }
 
     private static List<WaypointEntry> readWaypoints(FriendlyByteBuf buf) {
@@ -28,6 +32,7 @@ public record S2CLocatorState(List<WaypointEntry> waypoints) {
         for (WaypointEntry waypoint : waypoints) {
             waypoint.encode(buf);
         }
+        buf.writeBoolean(clearSelection);
     }
 
     public void handle(NetworkEvent.Context context) {
