@@ -9,7 +9,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String PROTOCOL = "4";
+    private static final String PROTOCOL = "5";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(ChaosCycle.MODID, "main"),
             () -> PROTOCOL,
@@ -50,12 +50,6 @@ public final class ModNetwork {
         CHANNEL.messageBuilder(S2CStatus.class, id++, NetworkDirection.PLAY_TO_CLIENT)
                 .encoder(S2CStatus::encode)
                 .decoder(S2CStatus::new)
-                .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
-                .add();
-
-        CHANNEL.messageBuilder(C2SOpenCommandExecutor.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(C2SOpenCommandExecutor::encode)
-                .decoder(C2SOpenCommandExecutor::new)
                 .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
                 .add();
 

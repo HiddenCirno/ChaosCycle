@@ -1,7 +1,5 @@
 package com.chaoscycle.client.gui;
 
-import com.chaoscycle.network.C2SExecuteCommand;
-import com.chaoscycle.network.ModNetwork;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.AbstractWidget;
@@ -10,22 +8,26 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 
+import java.util.function.Consumer;
+
 /**
- * 22x22 模式按钮。底图来自底部状态图集，图标用物品渲染。
- * 普通按钮：常态 / 按下 / 悬浮；当前模式不做“选中”外观。
+ * 22x22 模式按钮。底图来自 y=167 的状态图集，图标用物品渲染。
+ * 状态顺序：普通 / 按下 / 不可用 / 悬浮；当前模式不做“选中”外观。
  */
 public class ModeButton extends AbstractWidget {
     private final GameType mode;
     private final ItemStack icon;
     private final Component tooltip;
+    private final Consumer<GameType> onPress;
     private boolean pressed;
 
-    public ModeButton(int x, int y, GameType mode, ItemStack icon) {
+    public ModeButton(int x, int y, GameType mode, ItemStack icon, Consumer<GameType> onPress) {
         super(x, y, CommandExecutorGui.MODE_BUTTON_SIZE, CommandExecutorGui.MODE_BUTTON_SIZE,
                 Component.translatable("gui.chaoscycle.gamemode." + mode.getName()));
         this.mode = mode;
         this.icon = icon;
         this.tooltip = Component.translatable("gui.chaoscycle.gamemode." + mode.getName());
+        this.onPress = onPress;
     }
 
     public Component tooltip() {
@@ -34,9 +36,16 @@ public class ModeButton extends AbstractWidget {
 
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        int u = this.pressed
-                ? CommandExecutorGui.MODE_PRESSED_U
-                : (this.isHovered ? CommandExecutorGui.MODE_HOVER_U : CommandExecutorGui.MODE_NORMAL_U);
+        int u;
+        if (!this.active) {
+            u = CommandExecutorGui.MODE_DISABLED_U;
+        } else if (this.pressed) {
+            u = CommandExecutorGui.MODE_PRESSED_U;
+        } else if (this.isHovered) {
+            u = CommandExecutorGui.MODE_HOVER_U;
+        } else {
+            u = CommandExecutorGui.MODE_NORMAL_U;
+        }
         graphics.blit(CommandExecutorGui.TEXTURE, getX(), getY(), u,
                 CommandExecutorGui.MODE_ATLAS_Y,
                 CommandExecutorGui.MODE_BUTTON_SIZE, CommandExecutorGui.MODE_BUTTON_SIZE,
@@ -60,9 +69,8 @@ public class ModeButton extends AbstractWidget {
         }
         this.pressed = true;
         playDownSound(Minecraft.getInstance().getSoundManager());
-        // 使用和原版 F3+F4 相同的 gamemode 指令；通过命令执行器固定 2 级权限执行，
-        // 保留原版命令反馈（会显示在终端日志/聊天栏）。
-        ModNetwork.sendToServer(new C2SExecuteCommand("gamemode " + this.mode.getName()));
+        // 使用和原版 F3+F4 相同的 gamemode 指令；由命令执行器固定 2 级权限执行。
+        this.onPress.accept(this.mode);
         return true;
     }
 

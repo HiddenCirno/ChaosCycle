@@ -45,7 +45,7 @@ public class ExtraButton extends AbstractWidget {
 
     private ExtraButton(int x, int y, boolean selected, ItemStack icon, BlockState blockIcon,
                         Component tooltip, Runnable onPress) {
-        super(x, y, CommandExecutorGui.EXTRA_BUTTON_SIZE, CommandExecutorGui.EXTRA_BUTTON_SIZE, tooltip);
+        super(x, y, CommandExecutorGui.PAGE_BUTTON_SIZE, CommandExecutorGui.PAGE_BUTTON_SIZE, tooltip);
         this.selected = selected;
         this.icon = icon;
         this.blockIcon = blockIcon;
@@ -60,11 +60,11 @@ public class ExtraButton extends AbstractWidget {
     @Override
     protected void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         int u = this.selected
-                ? CommandExecutorGui.EXTRA_SELECTED_U
-                : CommandExecutorGui.EXTRA_NORMAL_U;
+                ? CommandExecutorGui.PAGE_SELECTED_U
+                : CommandExecutorGui.PAGE_NORMAL_U;
         graphics.blit(CommandExecutorGui.TEXTURE, getX(), getY(), u,
-                CommandExecutorGui.EXTRA_ATLAS_Y,
-                CommandExecutorGui.EXTRA_BUTTON_SIZE, CommandExecutorGui.EXTRA_BUTTON_SIZE,
+                CommandExecutorGui.PAGE_ATLAS_Y,
+                CommandExecutorGui.PAGE_BUTTON_SIZE, CommandExecutorGui.PAGE_BUTTON_SIZE,
                 CommandExecutorGui.TEXTURE_WIDTH, CommandExecutorGui.TEXTURE_HEIGHT);
         if (!this.icon.isEmpty()) {
             // 16x16 物品图标居中放在 20x20 按钮里。

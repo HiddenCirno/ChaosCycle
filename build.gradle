@@ -66,12 +66,21 @@ repositories {
         name = 'Curios'
         url = 'https://maven.theillusivec4.top/'
     }
+    maven {
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content {
+            includeGroup 'maven.modrinth'
+        }
+    }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     // 软依赖：Curios 相关类只在 ModList 确认加载后才注册/调用。
     implementation fg.deobf("top.theillusivec4.curios:curios-forge:${curios_version}")
+    // 仅 dev 联调：EMI 必须经过 fg.deobf 重映射后才能在本工程的 Mojmap/Parchment 开发环境加载。
+    runtimeOnly fg.deobf("maven.modrinth:emi:Axuu9I9R")
 }
 
 tasks.named('processResources', ProcessResources).configure {

@@ -3,7 +3,6 @@ package com.chaoscycle;
 import com.chaoscycle.network.ModNetwork;
 import com.chaoscycle.registry.ModItems;
 import com.chaoscycle.util.LocatorData;
-import com.chaoscycle.world.inventory.ModMenus;
 import com.mojang.logging.LogUtils;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
@@ -25,7 +24,6 @@ public final class ChaosCycle {
         IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
 
         ModItems.register(modBus);
-        ModMenus.register(modBus);
         ModNetwork.register();
         modBus.addListener(this::addCreativeTabContents);
         MinecraftForge.EVENT_BUS.addListener(LocatorData::onPlayerClone);

@@ -6,8 +6,6 @@ import com.chaoscycle.item.HyperspaceLocatorItem;
 import com.chaoscycle.util.DimensionUtil;
 import com.chaoscycle.util.ItemSource;
 import com.chaoscycle.util.LocatorData;
-import com.chaoscycle.world.inventory.CommandExecutorMenu;
-import com.chaoscycle.world.inventory.CommandExecutorMenuProvider;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
@@ -23,7 +21,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.RelativeMovement;
 import net.minecraft.world.item.Item;
-import net.minecraftforge.network.NetworkHooks;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -49,30 +46,15 @@ public final class ServerPacketHandler {
         return source != null && source.matches(player, itemClass);
     }
 
-    private static CommandExecutorMenu executorMenu(ServerPlayer player) {
-        return player.containerMenu instanceof CommandExecutorMenu menu ? menu : null;
-    }
-
     // ------------------------------------------------------------
     // Portable Command Executor
     // ------------------------------------------------------------
 
-    public static void handleOpenCommandExecutor(ServerPlayer player, ItemSource source) {
+    public static void handleExecuteCommand(ServerPlayer player, ItemSource source, String command) {
         if (player == null) {
             return;
         }
         if (!holds(player, source, CommandExecutorItem.class)) {
-            statusKey(player, "message.chaoscycle.not_holding_executor");
-            return;
-        }
-        NetworkHooks.openScreen(player, new CommandExecutorMenuProvider(source), source::encode);
-    }
-
-    public static void handleExecuteCommand(ServerPlayer player, String command) {
-        if (player == null) {
-            return;
-        }
-        if (executorMenu(player) == null) {
             statusKey(player, "message.chaoscycle.not_holding_executor");
             return;
         }
@@ -101,10 +83,10 @@ public final class ServerPacketHandler {
             // 这样不会让持有者通过本道具执行 /op、/stop 等 3/4 级命令。
             // 自定义 CommandSource 把 sendSuccess / sendFailure 的文本收进 captured，
             // 同时照常转发到玩家聊天栏，供 GUI 的输出区域显示。
-            CommandSourceStack source = player.createCommandSourceStack()
+            CommandSourceStack commandSource = player.createCommandSourceStack()
                     .withPermission(2)
                     .withSource(new CapturingCommandSource(player, captured));
-            int result = server.getCommands().performPrefixedCommand(source, cmd);
+            int result = server.getCommands().performPrefixedCommand(commandSource, cmd);
             if (captured.isEmpty()) {
                 captured.add(Component.translatable("message.chaoscycle.command.result", result)
                         .withStyle(ChatFormatting.GRAY));
@@ -207,7 +189,7 @@ public final class ServerPacketHandler {
         }
     }
 
-    public static void handleCommandTreeRequest(ServerPlayer player, boolean elevated) {
+    public static void handleCommandTreeRequest(ServerPlayer player, ItemSource source, boolean elevated) {
         if (player == null) {
             return;
         }
@@ -215,7 +197,7 @@ public final class ServerPacketHandler {
             sendCommandTree(player, -1);
             return;
         }
-        if (executorMenu(player) == null) {
+        if (!holds(player, source, CommandExecutorItem.class)) {
             statusKey(player, "message.chaoscycle.not_holding_executor");
             return;
         }

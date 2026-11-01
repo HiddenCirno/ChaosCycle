@@ -5,8 +5,6 @@ import com.chaoscycle.client.screen.CommandExecutorScreen;
 import com.chaoscycle.compat.CuriosCompat;
 import com.chaoscycle.item.CommandExecutorItem;
 import com.chaoscycle.item.HyperspaceLocatorItem;
-import com.chaoscycle.network.C2SOpenCommandExecutor;
-import com.chaoscycle.network.ModNetwork;
 import com.chaoscycle.util.ItemSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.InteractionHand;
@@ -30,8 +28,8 @@ public final class ClientForgeEvents {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || minecraft.screen != null) {
-            // 仍然消费按键，避免离开界面后补触发一堆打开请求。
+        if (minecraft.player == null || minecraft.screen != null || !minecraft.isWindowActive()) {
+            // 仍然消费按键，避免离开界面/切到其它窗口后补触发一堆打开请求。
             while (ClientModEvents.OPEN_COMMAND_EXECUTOR.consumeClick()) {
             }
             while (ClientModEvents.OPEN_HYPERSPACE_LOCATOR.consumeClick()) {
@@ -43,7 +41,7 @@ public final class ClientForgeEvents {
         while (ClientModEvents.OPEN_COMMAND_EXECUTOR.consumeClick()) {
             ItemSource source = findSource(player, CommandExecutorItem.class);
             if (source != null) {
-                ModNetwork.sendToServer(new C2SOpenCommandExecutor(source));
+                ClientScreens.openCommandExecutor(source);
             }
         }
         while (ClientModEvents.OPEN_HYPERSPACE_LOCATOR.consumeClick()) {
