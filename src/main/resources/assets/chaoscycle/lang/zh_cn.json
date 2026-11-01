@@ -31,7 +31,7 @@
   "gui.chaoscycle.locator.update": "保存修改",
   "gui.chaoscycle.locator.remove": "删除",
   "gui.chaoscycle.locator.teleport": "传送",
-  "gui.chaoscycle.locator.hint": "“保存当前坐标”把当前位置和名称加入列表；选中条目后可改名、改 XYZ 并保存；传送不消耗权限。",
+  "gui.chaoscycle.locator.hint": "“保存当前坐标”加入当前位置；选中可改名/改 XYZ；拖动条目排序；传送不消耗权限。",
 
   "message.chaoscycle.not_holding_executor": "你手上没有便携式命令执行器。",
   "message.chaoscycle.not_holding_locator": "你手上没有便携式超空间定位器。",
@@ -53,6 +53,7 @@
   "message.chaoscycle.waypoint_added": "已添加 %s @ %s, %s, %s",
   "message.chaoscycle.waypoint_updated": "已更新 #%s：%s @ %s, %s, %s",
   "message.chaoscycle.waypoint_removed": "已删除 #%s。",
+  "message.chaoscycle.waypoint_moved": "已移动到 #%s。",
   "message.chaoscycle.saving": "正在保存……",
   "message.chaoscycle.removing": "正在删除……",
   "message.chaoscycle.teleporting": "正在传送……",

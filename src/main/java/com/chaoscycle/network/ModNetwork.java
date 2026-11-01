@@ -9,7 +9,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String PROTOCOL = "2";
+    private static final String PROTOCOL = "3";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(ChaosCycle.MODID, "main"),
             () -> PROTOCOL,
@@ -86,6 +86,12 @@ public final class ModNetwork {
         CHANNEL.messageBuilder(C2SRemoveWaypoint.class, id++, NetworkDirection.PLAY_TO_SERVER)
                 .encoder(C2SRemoveWaypoint::encode)
                 .decoder(C2SRemoveWaypoint::new)
+                .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
+                .add();
+
+        CHANNEL.messageBuilder(C2SMoveWaypoint.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SMoveWaypoint::encode)
+                .decoder(C2SMoveWaypoint::new)
                 .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
                 .add();
 

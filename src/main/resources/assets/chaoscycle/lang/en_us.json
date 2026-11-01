@@ -31,7 +31,7 @@
   "gui.chaoscycle.locator.update": "Save Changes",
   "gui.chaoscycle.locator.remove": "Delete",
   "gui.chaoscycle.locator.teleport": "Teleport",
-  "gui.chaoscycle.locator.hint": "Save Current adds your position and name to the list; select an entry, rename it or edit its XYZ, then Save Changes. Teleport requires no permission.",
+  "gui.chaoscycle.locator.hint": "Save Current adds your position; select to rename or edit XYZ; drag rows to reorder. Teleport needs no permission.",
 
   "message.chaoscycle.not_holding_executor": "You are not holding the Portable Command Executor.",
   "message.chaoscycle.not_holding_locator": "You are not holding the Portable Hyperspace Locator.",
@@ -53,6 +53,7 @@
   "message.chaoscycle.waypoint_added": "Added %s @ %s, %s, %s",
   "message.chaoscycle.waypoint_updated": "Updated #%s: %s @ %s, %s, %s",
   "message.chaoscycle.waypoint_removed": "Removed #%s.",
+  "message.chaoscycle.waypoint_moved": "Moved to #%s.",
   "message.chaoscycle.saving": "Saving...",
   "message.chaoscycle.removing": "Removing...",
   "message.chaoscycle.teleporting": "Teleporting...",

@@ -5,6 +5,7 @@ import com.chaoscycle.client.gui.LocatorGui;
 import com.chaoscycle.client.gui.WaypointListWidget;
 import com.chaoscycle.item.HyperspaceLocatorItem;
 import com.chaoscycle.network.C2SAddWaypoint;
+import com.chaoscycle.network.C2SMoveWaypoint;
 import com.chaoscycle.network.C2SRemoveWaypoint;
 import com.chaoscycle.network.C2SRequestLocatorState;
 import com.chaoscycle.network.C2STeleportWaypoint;
@@ -92,6 +93,10 @@ public class HyperspaceLocatorScreen extends Screen {
         this.waypointList = this.addRenderableWidget(new WaypointListWidget(
                 LIST_X, LIST_Y, LIST_W, LIST_H, Component.empty()));
         this.waypointList.setOnSelect(index -> loadSelected());
+        this.waypointList.setOnReorder((from, to) -> {
+            ModNetwork.sendToServer(new C2SMoveWaypoint(this.hand.ordinal(), from, to));
+            this.status = Component.translatable("message.chaoscycle.saving");
+        });
 
         this.nameField = createField(NAME_X + 4, NAME_Y + 7, NAME_W - 8, 12, 32);
 
@@ -270,6 +275,10 @@ public class HyperspaceLocatorScreen extends Screen {
         Player player = Minecraft.getInstance().player;
         if (player == null || !(player.getItemInHand(this.hand).getItem() instanceof HyperspaceLocatorItem)) {
             onClose();
+            return;
+        }
+        if (this.waypointList != null) {
+            this.waypointList.tick();
         }
     }
 

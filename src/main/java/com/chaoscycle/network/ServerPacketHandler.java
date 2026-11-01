@@ -392,6 +392,36 @@ public final class ServerPacketHandler {
         sendLocatorState(player, true);
     }
 
+    public static void handleMoveWaypoint(ServerPlayer player, int handOrdinal, int from, int to) {
+        if (player == null) {
+            return;
+        }
+        InteractionHand hand = hand(handOrdinal);
+        if (!holding(player, hand, HyperspaceLocatorItem.class)) {
+            statusKey(player, "message.chaoscycle.not_holding_locator");
+            return;
+        }
+        List<LocatorData.Waypoint> waypoints = new ArrayList<>(LocatorData.read(player));
+        if (from < 0 || from >= waypoints.size() || to < 0 || to >= waypoints.size()) {
+            statusKey(player, "message.chaoscycle.invalid_waypoint_index");
+            // 客户端已经本地重排过；索引对不上时回传服务端顺序，避免界面停在未落盘的顺序上。
+            sendLocatorState(player);
+            return;
+        }
+        if (from == to) {
+            sendLocatorState(player);
+            return;
+        }
+        // 客户端拖动时已经按同样规则本地重排；服务端只落盘一次，
+        // 并把最终顺序回传给客户端，保证两边以服务端数据为准。
+        LocatorData.Waypoint moved = waypoints.remove(from);
+        waypoints.add(to, moved);
+        LocatorData.write(player, waypoints);
+
+        statusKey(player, "message.chaoscycle.waypoint_moved", to + 1);
+        sendLocatorState(player);
+    }
+
     public static void handleTeleportWaypoint(ServerPlayer player, int handOrdinal, int index) {
         if (player == null) {
             return;
