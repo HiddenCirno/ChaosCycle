@@ -1,69 +1,65 @@
 package com.chaoscycle.client.screen;
 
 import com.chaoscycle.ChaosCycle;
-import com.chaoscycle.client.gui.CommandLogWidget;
+import com.chaoscycle.client.gui.CommandExecutorGui;
+import com.chaoscycle.client.gui.CommandTerminalWidget;
+import com.chaoscycle.client.gui.ExtraButton;
+import com.chaoscycle.client.gui.ModeButton;
 import com.chaoscycle.network.C2SCommandTreeRequest;
 import com.chaoscycle.network.C2SExecuteCommand;
-import com.chaoscycle.network.C2SRequestExecutorState;
-import com.chaoscycle.network.C2SSetGameMode;
 import com.chaoscycle.network.ModNetwork;
+import com.chaoscycle.world.inventory.CommandExecutorMenu;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CommandSuggestions;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.multiplayer.ClientPacketListener;
 import net.minecraft.client.multiplayer.ClientSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.Mth;
-import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Blocks;
 import org.lwjgl.glfw.GLFW;
 
 import java.lang.reflect.Field;
 import java.util.List;
 
 /**
- * 聊天栏式的命令执行器界面。
+ * 命令执行器容器界面。
  *
- * 补全直接使用原版 {@link CommandSuggestions}，包括高亮、候选切换、鼠标选择、
- * 使用提示等全部行为；只在界面打开期间把连接的 suggestion provider 换成一个
- * "hasPermission(<=2) 恒为 true" 的子类，让选择器参数补全（@e[...]）也能工作。
- * 不修改 LocalPlayer 的权限等级；关闭界面时把原 provider 换回。
+ * 主面板 199x207；终端 162x112（内部 160x110，10 行日志 + 1 行输入）；
+ * 右侧 4 个 22x22 模式按钮，主面板外 4 个 20x20 页面按钮。
  *
- * 另外 CommandSuggestions 的 Y 坐标是按原版聊天栏硬编码的
- * （anchorToBottom ? screen.height - 12 : 72），所以布局完成后把 Screen.height
- * 换成假值，让列表落在输入行上方；渲染背景时再临时恢复真实高度。
+ * 输入行使用原版 CommandSuggestions；打开界面期间把连接的 suggestion provider
+ * 换成固定 2 级权限的版本，关闭时恢复。CommandSuggestions 的 Y 坐标按原版
+ * 聊天栏的 screen.height 计算，所以布局完成后临时改 height，绘制背景时恢复。
  */
-public class CommandExecutorScreen extends Screen {
-    // 418 + 8 边框 = 426，卡在 GUI Scale 2 的 427×240 逻辑分辨率内。
-    private static final int PANEL_WIDTH = 418;
-    private static final int PANEL_HEIGHT = 228;
-    private static final int MODE_BUTTON_WIDTH = 80;
-    private static final int MODE_BUTTON_HEIGHT = 20;
-    private static final int MODE_BUTTON_GAP = 4;
-    private static final int LOG_Y = 62;
-    private static final int LOG_HEIGHT = 144;
-    private static final int INPUT_Y = 210;
-    private static final int INPUT_BOX_Y = 206; // 输入行背景顶边，也是补全列表的下边界
-    // 只保留生存 / 创造：旁观模式没有物品栏、右键也无 Item#use，
-    // 误切进去后不容易回来，调试道具不做这个入口。
+public class CommandExecutorScreen extends AbstractContainerScreen<CommandExecutorMenu> {
     private static final GameType[] GAME_MODES = {
-            GameType.SURVIVAL, GameType.CREATIVE
+            GameType.CREATIVE, GameType.SURVIVAL, GameType.ADVENTURE, GameType.SPECTATOR
+    };
+    private static final ItemStack[] MODE_ICONS = {
+            new ItemStack(Items.GRASS_BLOCK),
+            new ItemStack(Items.IRON_SWORD),
+            new ItemStack(Items.PAPER),
+            new ItemStack(Items.ENDER_EYE)
     };
 
     /** ClientPacketListener 里唯一一个 ClientSuggestionProvider 类型的字段。 */
     private static final Field SUGGESTIONS_PROVIDER_FIELD = findSuggestionsProviderField();
 
-    private final InteractionHand hand;
-    private final Button[] gameModeButtons = new Button[GAME_MODES.length];
-    private GameType gameMode = GameType.SURVIVAL;
+    private final ModeButton[] modeButtons = new ModeButton[GAME_MODES.length];
+    private final ExtraButton[] extraButtons = new ExtraButton[4];
+
+    private CommandTerminalWidget logWidget;
     private EditBox commandField;
     private CommandSuggestions commandSuggestions;
-    private CommandLogWidget logWidget;
 
     private ClientPacketListener patchedConnection;
     private ClientSuggestionProvider originalSuggestionProvider;
@@ -73,18 +69,15 @@ public class CommandExecutorScreen extends Screen {
     private int realHeight;
     private boolean initialized;
 
-    private int left;
-    private int top;
-
-    public CommandExecutorScreen(InteractionHand hand) {
-        super(Component.translatable("gui.chaoscycle.command_executor.title"));
-        this.hand = hand;
+    public CommandExecutorScreen(CommandExecutorMenu menu, Inventory inventory, Component title) {
+        super(menu, inventory, title);
+        this.imageWidth = CommandExecutorGui.BODY_WIDTH;
+        this.imageHeight = CommandExecutorGui.BODY_HEIGHT;
     }
 
     @Override
     protected void init() {
-        // 调整窗口大小会走 resize → rebuildWidgets → init()，同一次屏幕实例被重建。
-        // 先把输入内容和输出区内容存下来，重建后再恢复。
+        // 调整窗口大小会重建界面；把输入/日志/历史带过去。
         List<FormattedCharSequence> previousLog = this.logWidget == null
                 ? null : this.logWidget.snapshotLines();
         int previousLogScroll = this.logWidget == null ? 0 : this.logWidget.getScrolledUp();
@@ -94,30 +87,35 @@ public class CommandExecutorScreen extends Screen {
         String previousHistoryBuffer = this.historyBuffer;
         boolean firstInit = !this.initialized;
 
-        // 不要用 this.height：上一次布局后它被改成了补全用的假值。窗口缩放后的真实值从这里取。
+        // 上一次布局后 height 被改成了补全用的假值；恢复真实值再做居中。
         this.realHeight = this.minecraft.getWindow().getGuiScaledHeight();
-        this.left = (this.width - PANEL_WIDTH) / 2;
-        this.top = (this.realHeight - PANEL_HEIGHT) / 2;
+        this.height = this.realHeight;
+        super.init();
 
-        int totalWidth = GAME_MODES.length * MODE_BUTTON_WIDTH + (GAME_MODES.length - 1) * MODE_BUTTON_GAP;
-        int startX = this.left + (PANEL_WIDTH - totalWidth) / 2;
-        for (int i = 0; i < GAME_MODES.length; i++) {
-            GameType mode = GAME_MODES[i];
-            int x = startX + i * (MODE_BUTTON_WIDTH + MODE_BUTTON_GAP);
-            gameModeButtons[i] = this.addRenderableWidget(Button.builder(modeLabel(mode), button -> {
-                this.gameMode = mode;
-                refreshGameModeButtons();
-                ModNetwork.sendToServer(new C2SSetGameMode(this.hand.ordinal(), mode.getId()));
-            }).bounds(x, this.top + 34, MODE_BUTTON_WIDTH, MODE_BUTTON_HEIGHT).build());
+        int left = this.leftPos;
+        int top = this.topPos;
+
+        this.logWidget = this.addRenderableWidget(new CommandTerminalWidget(
+                left + CommandExecutorGui.TERMINAL_INNER_X,
+                top + CommandExecutorGui.TERMINAL_INNER_Y,
+                CommandExecutorGui.TERMINAL_INNER_WIDTH,
+                CommandExecutorGui.LOG_LINES * CommandExecutorGui.LINE_HEIGHT,
+                Component.empty()));
+        if (previousLog != null && !previousLog.isEmpty()) {
+            this.logWidget.restoreSnapshot(previousLog, previousLogScroll);
+        } else {
+            this.logWidget.append(Component.translatable("gui.chaoscycle.command_executor.hint")
+                    .withStyle(ChatFormatting.DARK_GRAY));
         }
 
-        // 无边框 EditBox：只作为文本/光标模型和 CommandSuggestions 的锚点。
-        this.commandField = new EditBox(this.font,
-                this.left + 26, this.top + INPUT_Y, 376, 12,
-                Component.translatable("gui.chaoscycle.command.hint"));
+        // 输入行：终端内部第 11 行，无边框、无分隔线。
+        this.commandField = this.addRenderableWidget(new EditBox(this.font,
+                left + 20, top + CommandExecutorGui.INPUT_LINE_Y, 148, 10,
+                Component.empty()));
         this.commandField.setBordered(false);
         this.commandField.setMaxLength(256);
         this.commandField.setHint(Component.translatable("gui.chaoscycle.command.hint"));
+        this.commandField.setTextColor(0xFFF0F0F0);
         this.commandField.setFocused(true);
         this.commandField.setResponder(value -> {
             if (this.commandSuggestions != null) {
@@ -126,21 +124,40 @@ public class CommandExecutorScreen extends Screen {
             }
         });
 
-        this.logWidget = this.addRenderableWidget(new CommandLogWidget(
-                this.left + 16, this.top + LOG_Y, 386, LOG_HEIGHT, Component.empty()));
-        if (previousLog != null && !previousLog.isEmpty()) {
-            this.logWidget.restoreSnapshot(previousLog, previousLogScroll);
-        } else {
-            this.logWidget.append(Component.translatable("gui.chaoscycle.command_executor.hint")
-                    .withStyle(ChatFormatting.DARK_GRAY));
+        for (int i = 0; i < GAME_MODES.length; i++) {
+            this.modeButtons[i] = this.addRenderableWidget(new ModeButton(
+                    left + CommandExecutorGui.MODE_X,
+                    top + CommandExecutorGui.MODE_Y[i],
+                    GAME_MODES[i], MODE_ICONS[i].copy()));
         }
 
-        // CommandSuggestions 的 Tab 补全要求 screen.getFocused() == input。
+        // 末地折跃门没有物品形态，用方块实体渲染。
+        this.extraButtons[0] = this.addRenderableWidget(new ExtraButton(
+                left + CommandExecutorGui.EXTRA_X, top + CommandExecutorGui.EXTRA_Y[0], true,
+                Blocks.END_GATEWAY.defaultBlockState(),
+                Component.translatable("gui.chaoscycle.page.command_executor"), () -> {
+        }));
+        this.extraButtons[1] = this.addRenderableWidget(new ExtraButton(
+                left + CommandExecutorGui.EXTRA_X, top + CommandExecutorGui.EXTRA_Y[1], false,
+                new ItemStack(Items.COMMAND_BLOCK),
+                Component.translatable("gui.chaoscycle.page.pulse"), () -> {
+        }));
+        this.extraButtons[2] = this.addRenderableWidget(new ExtraButton(
+                left + CommandExecutorGui.EXTRA_X, top + CommandExecutorGui.EXTRA_Y[2], false,
+                new ItemStack(Items.REPEATING_COMMAND_BLOCK),
+                Component.translatable("gui.chaoscycle.page.loop"), () -> {
+        }));
+        this.extraButtons[3] = this.addRenderableWidget(new ExtraButton(
+                left + CommandExecutorGui.EXTRA_X, top + CommandExecutorGui.EXTRA_Y[3], false,
+                new ItemStack(Items.CHAIN_COMMAND_BLOCK),
+                Component.translatable("gui.chaoscycle.page.chain"), () -> {
+        }));
+
         this.setFocused(this.commandField);
+        this.commandField.setFocused(true);
 
         // 界面打开期间把 suggestion provider 换成固定 2 级权限的版本。
-        // init() 可能因窗口缩放被再次调用：只在第一次替换时保存原 provider，
-        // 否则会把已经替换过的实例当成"原实例"存下来，关闭时无法恢复。
+        // init() 可能因窗口缩放再次调用：只在第一次替换时保存原 provider。
         Minecraft minecraft = Minecraft.getInstance();
         if (this.patchedConnection == null
                 && minecraft.player != null && minecraft.player.connection != null) {
@@ -150,17 +167,14 @@ public class CommandExecutorScreen extends Screen {
                     new FixedPermissionSuggestionProvider(this.patchedConnection, minecraft, 2));
         }
 
-        // 让原版补全列表的底边正好落在输入行上方：
-        // showSuggestions 使用的 Y = screen.height - 12，SuggestionsList 再上移 3 + 行高。
-        this.height = this.top + INPUT_BOX_Y + 15;
+        // 原版补全列表底边 = screen.height - 12；让输入行上方成为它的锚点。
+        this.height = top + CommandExecutorGui.INPUT_LINE_Y + 15;
 
-        // commandsOnly=false：和原版聊天栏一样，只有以 / 开头时才按指令补全。
         this.commandSuggestions = new CommandSuggestions(this.minecraft, this, this.commandField,
                 this.font, false, false, 1, 10, true, -805306368);
         this.commandSuggestions.setAllowSuggestions(false);
         this.commandSuggestions.updateCommandInfo();
 
-        // 恢复缩放前正在输入的内容和光标位置。
         if (!previousValue.isEmpty()) {
             this.commandField.setValue(previousValue);
             this.commandField.setCursorPosition(Math.min(previousCursor, previousValue.length()));
@@ -176,10 +190,7 @@ public class CommandExecutorScreen extends Screen {
         }
         this.initialized = true;
 
-        refreshGameModeButtons();
-        ModNetwork.sendToServer(new C2SRequestExecutorState(this.hand.ordinal()));
-        // 补全使用的命令树也要切到 2 级权限，关闭界面时再恢复玩家自己的命令树。
-        ModNetwork.sendToServer(new C2SCommandTreeRequest(this.hand.ordinal(), true));
+        ModNetwork.sendToServer(new C2SCommandTreeRequest(true));
     }
 
     @Override
@@ -191,40 +202,142 @@ public class CommandExecutorScreen extends Screen {
         }
         this.patchedConnection = null;
         this.originalSuggestionProvider = null;
-        ModNetwork.sendToServer(new C2SCommandTreeRequest(this.hand.ordinal(), false));
+        ModNetwork.sendToServer(new C2SCommandTreeRequest(false));
         super.removed();
     }
 
     @Override
     public void renderBackground(GuiGraphics graphics) {
-        // 布局完成后 height 被改成了假值；背景仍要按真实窗口高度绘制。
+        // 布局后 height 是补全用的假值；背景仍按真实窗口高度绘制。
         int fakeHeight = this.height;
-        this.height = this.realHeight > 0 ? this.realHeight : this.minecraft.getWindow().getGuiScaledHeight();
+        this.height = this.realHeight > 0 ? this.realHeight
+                : this.minecraft.getWindow().getGuiScaledHeight();
         super.renderBackground(graphics);
         this.height = fakeHeight;
     }
 
-    private void refreshGameModeButtons() {
-        for (int i = 0; i < GAME_MODES.length && i < gameModeButtons.length; i++) {
-            Button button = gameModeButtons[i];
-            if (button == null) {
-                continue;
+    @Override
+    protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
+        graphics.blit(CommandExecutorGui.TEXTURE, this.leftPos, this.topPos, 0, 0,
+                CommandExecutorGui.BODY_WIDTH, CommandExecutorGui.BODY_HEIGHT,
+                CommandExecutorGui.TEXTURE_WIDTH, CommandExecutorGui.TEXTURE_HEIGHT);
+    }
+
+    @Override
+    protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
+        // 新纹理没有烘焙标题/背包标签，全部不画。
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        super.render(graphics, mouseX, mouseY, partialTick);
+
+        // 输入行提示符；终端内区是纯黑，不画分隔线。
+        graphics.drawString(this.font, ">", this.leftPos + 10,
+                this.topPos + CommandExecutorGui.INPUT_LINE_Y + 1, 0xFFAAAAAA, false);
+        renderButtonTooltips(graphics, mouseX, mouseY);
+
+        if (this.commandSuggestions != null) {
+            this.commandSuggestions.render(graphics, mouseX, mouseY);
+        }
+    }
+
+    private void renderButtonTooltips(GuiGraphics graphics, int mouseX, int mouseY) {
+        for (ModeButton button : this.modeButtons) {
+            if (button != null && button.isMouseOver(mouseX, mouseY)) {
+                graphics.renderTooltip(this.font, button.tooltip(), mouseX, mouseY);
+                return;
             }
-            boolean selected = GAME_MODES[i] == this.gameMode;
-            button.setMessage(Component.literal(selected ? "▶ " : "").append(modeLabel(GAME_MODES[i])));
+        }
+        for (ExtraButton button : this.extraButtons) {
+            if (button != null && button.isMouseOver(mouseX, mouseY)) {
+                graphics.renderTooltip(this.font, button.tooltip(), mouseX, mouseY);
+                return;
+            }
         }
     }
 
-    private static Component modeLabel(GameType mode) {
-        return Component.translatable("gui.chaoscycle.gamemode." + mode.getName());
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        boolean handled = super.mouseClicked(mouseX, mouseY, button);
+        if (isTerminal(mouseX, mouseY)) {
+            focusCommandField();
+            return true;
+        }
+        if (this.hoveredSlot != null) {
+            // 点击物品栏后释放输入焦点，数字键/E 等容器快捷键才能生效。
+            this.commandField.setFocused(false);
+            this.setFocused(null);
+        }
+        return handled;
     }
 
-    public void applyGameMode(int gameModeId) {
-        GameType mode = GameType.byId(gameModeId);
-        if (mode != null) {
-            this.gameMode = mode;
-            refreshGameModeButtons();
+    private boolean isTerminal(double mouseX, double mouseY) {
+        return mouseX >= this.leftPos + CommandExecutorGui.TERMINAL_INNER_X
+                && mouseX < this.leftPos + CommandExecutorGui.TERMINAL_INNER_X
+                + CommandExecutorGui.TERMINAL_INNER_WIDTH
+                && mouseY >= this.topPos + CommandExecutorGui.TERMINAL_INNER_Y
+                && mouseY < this.topPos + CommandExecutorGui.TERMINAL_INNER_Y
+                + CommandExecutorGui.TERMINAL_INNER_HEIGHT;
+    }
+
+    private void focusCommandField() {
+        if (this.commandField != null) {
+            this.setFocused(this.commandField);
+            this.commandField.setFocused(true);
         }
+    }
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (this.commandField != null && this.commandField.isFocused()) {
+            return this.commandField.charTyped(codePoint, modifiers);
+        }
+        return super.charTyped(codePoint, modifiers);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (this.commandField == null) {
+            return super.keyPressed(keyCode, scanCode, modifiers);
+        }
+
+        if (this.commandField.isFocused()) {
+            if (this.commandSuggestions.keyPressed(keyCode, scanCode, modifiers)) {
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_UP) {
+                moveInHistory(-1);
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_DOWN) {
+                moveInHistory(1);
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+                execute();
+                return true;
+            }
+            if (keyCode == GLFW.GLFW_KEY_ESCAPE) {
+                this.onClose();
+                return true;
+            }
+            if (this.commandField.keyPressed(keyCode, scanCode, modifiers)) {
+                return true;
+            }
+            // 输入焦点在终端时，不要把 E/数字键交给容器快捷键。
+            return true;
+        }
+
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (this.commandSuggestions != null && this.commandSuggestions.mouseScrolled(delta)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
     }
 
     // ------------------------------------------------------------
@@ -272,21 +385,19 @@ public class CommandExecutorScreen extends Screen {
         // 与原版聊天一致：执行后清空输入。
         this.commandField.setValue("");
         if (isCommand) {
-            ModNetwork.sendToServer(new C2SExecuteCommand(this.hand.ordinal(), input.substring(1)));
+            ModNetwork.sendToServer(new C2SExecuteCommand(input.substring(1)));
         } else if (this.minecraft.player != null) {
             // 普通文本走原版聊天；发送后服务端会广播回来，由 ClientChatReceivedEvent 追加到输出区。
             this.minecraft.player.connection.sendChat(input);
         }
     }
 
-    /** 非系统聊天（玩家发言、/say 等）实时追加到输出区，使这里像一个聊天终端。 */
     public void appendChat(Component message) {
         if (this.logWidget != null && message != null) {
             this.logWidget.append(message);
         }
     }
 
-    /** 服务端把 sendSuccess / sendFailure 的文本抄送回来，按聊天栏方式追加到输出区。 */
     public void appendCommandOutput(List<Component> messages) {
         if (this.logWidget == null) {
             return;
@@ -303,119 +414,9 @@ public class CommandExecutorScreen extends Screen {
     }
 
     // ------------------------------------------------------------
-    // 渲染与输入
-    // ------------------------------------------------------------
-
-    @Override
-    public void tick() {
-        if (this.commandField != null) {
-            this.commandField.tick();
-        }
-    }
-
-    @Override
-    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
-        this.renderBackground(graphics);
-        graphics.fill(this.left - 4, this.top - 4,
-                this.left + PANEL_WIDTH + 4, this.top + PANEL_HEIGHT + 4, 0xCC101010);
-        graphics.fill(this.left - 4, this.top - 4,
-                this.left + PANEL_WIDTH + 4, this.top - 3, 0xFF5A5A5A);
-        graphics.fill(this.left - 4, this.top + PANEL_HEIGHT + 3,
-                this.left + PANEL_WIDTH + 4, this.top + PANEL_HEIGHT + 4, 0xFF5A5A5A);
-
-        graphics.drawString(this.font, this.title, this.left + 16, this.top + 12, 0xFFFFFF, false);
-        graphics.drawString(this.font, Component.translatable("gui.chaoscycle.mode.label"),
-                this.left + 16, this.top + 24, 0xAAAAAA, false);
-
-        super.render(graphics, mouseX, mouseY, partialTick);
-
-        // 聊天栏式输入行：半透明底 + 顶部分隔线 + 提示符。
-        graphics.fill(this.left + 12, this.top + INPUT_BOX_Y,
-                this.left + PANEL_WIDTH - 12, this.top + INPUT_BOX_Y + 18, 0x80000000);
-        graphics.fill(this.left + 12, this.top + INPUT_BOX_Y,
-                this.left + PANEL_WIDTH - 12, this.top + INPUT_BOX_Y + 1, 0xFF3A3A3A);
-        graphics.drawString(this.font, ">", this.left + 16, this.top + INPUT_Y - 1, 0xFFAAAAAA, false);
-        this.commandField.render(graphics, mouseX, mouseY, partialTick);
-
-        // 原版补全/用法提示最后画，盖在输出区与输入行之上。
-        this.commandSuggestions.render(graphics, mouseX, mouseY);
-    }
-
-    @Override
-    public boolean charTyped(char codePoint, int modifiers) {
-        this.setFocused(this.commandField);
-        this.commandField.setFocused(true);
-        return this.commandField.charTyped(codePoint, modifiers);
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // CommandSuggestions 的 Tab 判定依赖 screen.getFocused() == input。
-        this.setFocused(this.commandField);
-        this.commandField.setFocused(true);
-
-        if (this.commandSuggestions.keyPressed(keyCode, scanCode, modifiers)) {
-            return true;
-        }
-        if (keyCode == GLFW.GLFW_KEY_UP) {
-            moveInHistory(-1);
-            return true;
-        }
-        if (keyCode == GLFW.GLFW_KEY_DOWN) {
-            moveInHistory(1);
-            return true;
-        }
-        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
-            execute();
-            return true;
-        }
-        if (this.commandField.keyPressed(keyCode, scanCode, modifiers)) {
-            return true;
-        }
-        return super.keyPressed(keyCode, scanCode, modifiers);
-    }
-
-    @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        if (this.commandSuggestions.mouseClicked(mouseX, mouseY, button)) {
-            return true;
-        }
-        if (button == 0 && mouseX >= this.left + 12 && mouseX < this.left + PANEL_WIDTH - 12
-                && mouseY >= this.top + INPUT_BOX_Y && mouseY < this.top + INPUT_BOX_Y + 18) {
-            this.setFocused(this.commandField);
-            this.commandField.setFocused(true);
-            this.commandField.mouseClicked(mouseX, mouseY, button);
-            return true;
-        }
-        return super.mouseClicked(mouseX, mouseY, button);
-    }
-
-    @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        if (this.commandSuggestions.mouseScrolled(delta)) {
-            return true;
-        }
-        return super.mouseScrolled(mouseX, mouseY, delta);
-    }
-
-    @Override
-    public boolean isPauseScreen() {
-        return false;
-    }
-
-    @Override
-    public void onClose() {
-        Minecraft.getInstance().setScreen(null);
-    }
-
-    // ------------------------------------------------------------
     // 固定权限的 suggestion provider
     // ------------------------------------------------------------
 
-    /**
-     * 只覆盖权限判断：2 级及以下一律返回 true，其余交给原 provider。
-     * 用于通过 EntityArgument.listSuggestions → ForgeHooks.canUseEntitySelectors 的检查。
-     */
     private static final class FixedPermissionSuggestionProvider extends ClientSuggestionProvider {
         private final int fixedLevel;
 
@@ -445,7 +446,8 @@ public class CommandExecutorScreen extends Screen {
         return null;
     }
 
-    private static void setSuggestionProvider(ClientPacketListener connection, ClientSuggestionProvider provider) {
+    private static void setSuggestionProvider(ClientPacketListener connection,
+                                              ClientSuggestionProvider provider) {
         if (SUGGESTIONS_PROVIDER_FIELD == null) {
             ChaosCycle.LOGGER.warn("ClientPacketListener suggestion provider field not found");
             return;

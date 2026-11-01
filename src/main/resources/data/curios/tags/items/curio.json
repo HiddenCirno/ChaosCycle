@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "chaoscycle:command_executor",
+    "chaoscycle:hyperspace_locator"
+  ]
+}

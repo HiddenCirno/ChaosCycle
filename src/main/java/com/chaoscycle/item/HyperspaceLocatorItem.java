@@ -1,6 +1,7 @@
 package com.chaoscycle.item;
 
 import com.chaoscycle.client.ClientScreens;
+import com.chaoscycle.util.ItemSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.entity.player.Player;
@@ -19,7 +20,9 @@ public class HyperspaceLocatorItem extends Item {
     public InteractionResultHolder<ItemStack> use(Level level, Player player, InteractionHand hand) {
         ItemStack stack = player.getItemInHand(hand);
         if (level.isClientSide) {
-            DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> ClientScreens.openHyperspaceLocator(hand));
+            ItemSource source = ItemSource.hand(hand);
+            DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
+                    () -> () -> ClientScreens.openHyperspaceLocator(source));
         }
         return InteractionResultHolder.sidedSuccess(stack, level.isClientSide);
     }

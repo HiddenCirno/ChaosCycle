@@ -6,19 +6,17 @@
   "dimension.minecraft.the_nether": "The Nether",
   "dimension.minecraft.the_end": "The End",
 
-  "tooltip.chaoscycle.command_executor.desc": "Debug console and chat box. Two buttons switch your game mode.",
-  "tooltip.chaoscycle.command_executor.modes": "Survival / Creative",
-  "tooltip.chaoscycle.command_executor.command_level": "Commands run at permission level 2 (max 2).",
-
   "gui.chaoscycle.command_executor.title": "Portable Command Executor",
-  "gui.chaoscycle.mode.label": "Game Mode",
   "gui.chaoscycle.gamemode.survival": "Survival",
   "gui.chaoscycle.gamemode.creative": "Creative",
-  "gui.chaoscycle.command.label": "Command",
+  "gui.chaoscycle.gamemode.adventure": "Adventure",
+  "gui.chaoscycle.gamemode.spectator": "Spectator",
   "gui.chaoscycle.command.hint": "Chat, or start with / to run a command",
-  "gui.chaoscycle.execute": "Execute",
-  "gui.chaoscycle.command_executor.output": "Output",
   "gui.chaoscycle.command_executor.hint": "Plain text is sent as chat; prefix with / to run a level-2 command (max 2).",
+  "gui.chaoscycle.page.command_executor": "Command Executor",
+  "gui.chaoscycle.page.pulse": "Pulse Macro (reserved)",
+  "gui.chaoscycle.page.loop": "Loop Macro (reserved)",
+  "gui.chaoscycle.page.chain": "Chain Macro (reserved)",
 
   "gui.chaoscycle.locator.title": "Portable Hyperspace Locator",
   "gui.chaoscycle.locator.list": "Coordinates",
@@ -37,12 +35,8 @@
   "message.chaoscycle.not_holding_locator": "You are not holding the Portable Hyperspace Locator.",
   "message.chaoscycle.command.empty": "Input is empty.",
   "message.chaoscycle.command.too_long": "Command is too long (max 256 characters).",
-  "message.chaoscycle.command.sent": "Command sent.",
   "message.chaoscycle.command.result": "Command finished with result %s.",
   "message.chaoscycle.command.failed": "Command failed: %s",
-  "message.chaoscycle.gamemode_switching": "Switching game mode...",
-  "message.chaoscycle.gamemode_changed": "Game mode changed to %s.",
-  "message.chaoscycle.invalid_gamemode": "Invalid game mode.",
   "message.chaoscycle.invalid_dimension": "Invalid or unknown dimension: %s",
   "message.chaoscycle.invalid_position": "Invalid coordinate (must be finite and inside the world border / height range).",
   "message.chaoscycle.stored_position_invalid": "Stored coordinate is outside the destination's valid range.",
@@ -59,6 +53,7 @@
   "message.chaoscycle.teleporting": "Teleporting...",
   "message.chaoscycle.teleported": "Teleported to %s.",
 
-  "key.chaoscycle.open_gui": "Open Chaos Cycle GUI",
+  "key.chaoscycle.open_command_executor": "Open Command Executor",
+  "key.chaoscycle.open_hyperspace_locator": "Open Hyperspace Locator",
   "key.categories.chaoscycle": "Chaos Cycle"
 }

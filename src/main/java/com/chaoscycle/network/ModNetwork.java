@@ -9,7 +9,7 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 public final class ModNetwork {
-    private static final String PROTOCOL = "3";
+    private static final String PROTOCOL = "4";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(ChaosCycle.MODID, "main"),
             () -> PROTOCOL,
@@ -53,21 +53,9 @@ public final class ModNetwork {
                 .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
                 .add();
 
-        CHANNEL.messageBuilder(C2SRequestExecutorState.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(C2SRequestExecutorState::encode)
-                .decoder(C2SRequestExecutorState::new)
-                .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
-                .add();
-
-        CHANNEL.messageBuilder(C2SSetGameMode.class, id++, NetworkDirection.PLAY_TO_SERVER)
-                .encoder(C2SSetGameMode::encode)
-                .decoder(C2SSetGameMode::new)
-                .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
-                .add();
-
-        CHANNEL.messageBuilder(S2CExecutorState.class, id++, NetworkDirection.PLAY_TO_CLIENT)
-                .encoder(S2CExecutorState::encode)
-                .decoder(S2CExecutorState::new)
+        CHANNEL.messageBuilder(C2SOpenCommandExecutor.class, id++, NetworkDirection.PLAY_TO_SERVER)
+                .encoder(C2SOpenCommandExecutor::encode)
+                .decoder(C2SOpenCommandExecutor::new)
                 .consumerMainThread((msg, ctx) -> msg.handle(ctx.get()))
                 .add();
 

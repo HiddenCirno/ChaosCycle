@@ -1,13 +1,14 @@
 package com.chaoscycle.network;
 
+import com.chaoscycle.util.ItemSource;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
-public record C2SAddWaypoint(int hand, String name, String dimension,
+public record C2SAddWaypoint(ItemSource source, String name, String dimension,
                              double x, double y, double z, float yaw, float pitch) {
     public C2SAddWaypoint(FriendlyByteBuf buf) {
         this(
-                buf.readUnsignedByte(),
+                ItemSource.decode(buf),
                 buf.readUtf(64),
                 buf.readUtf(256),
                 buf.readDouble(),
@@ -19,7 +20,7 @@ public record C2SAddWaypoint(int hand, String name, String dimension,
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeByte(hand);
+        source.encode(buf);
         buf.writeUtf(name, 64);
         buf.writeUtf(dimension, 256);
         buf.writeDouble(x);
@@ -30,7 +31,7 @@ public record C2SAddWaypoint(int hand, String name, String dimension,
     }
 
     public void handle(NetworkEvent.Context context) {
-        ServerPacketHandler.handleAddWaypoint(context.getSender(), hand, name, dimension,
+        ServerPacketHandler.handleAddWaypoint(context.getSender(), source, name, dimension,
                 x, y, z, yaw, pitch);
     }
 }

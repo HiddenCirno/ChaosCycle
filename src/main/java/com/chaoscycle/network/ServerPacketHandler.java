@@ -4,7 +4,10 @@ import com.chaoscycle.ChaosCycle;
 import com.chaoscycle.item.CommandExecutorItem;
 import com.chaoscycle.item.HyperspaceLocatorItem;
 import com.chaoscycle.util.DimensionUtil;
+import com.chaoscycle.util.ItemSource;
 import com.chaoscycle.util.LocatorData;
+import com.chaoscycle.world.inventory.CommandExecutorMenu;
+import com.chaoscycle.world.inventory.CommandExecutorMenuProvider;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.tree.CommandNode;
 import com.mojang.brigadier.tree.RootCommandNode;
@@ -18,10 +21,9 @@ import net.minecraft.network.protocol.game.ClientboundCommandsPacket;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.RelativeMovement;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.GameType;
+import net.minecraft.world.item.Item;
+import net.minecraftforge.network.NetworkHooks;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -35,12 +37,6 @@ public final class ServerPacketHandler {
     private ServerPacketHandler() {
     }
 
-    private static InteractionHand hand(int ordinal) {
-        return ordinal == InteractionHand.OFF_HAND.ordinal()
-                ? InteractionHand.OFF_HAND
-                : InteractionHand.MAIN_HAND;
-    }
-
     private static void status(ServerPlayer player, Component message, boolean closeScreen) {
         ModNetwork.sendToPlayer(player, new S2CStatus(message, closeScreen));
     }
@@ -49,21 +45,34 @@ public final class ServerPacketHandler {
         status(player, Component.translatable(key, args), false);
     }
 
-    private static boolean holding(ServerPlayer player, InteractionHand hand, Class<?> itemClass) {
-        ItemStack stack = player.getItemInHand(hand);
-        return itemClass.isInstance(stack.getItem());
+    private static boolean holds(ServerPlayer player, ItemSource source, Class<? extends Item> itemClass) {
+        return source != null && source.matches(player, itemClass);
+    }
+
+    private static CommandExecutorMenu executorMenu(ServerPlayer player) {
+        return player.containerMenu instanceof CommandExecutorMenu menu ? menu : null;
     }
 
     // ------------------------------------------------------------
     // Portable Command Executor
     // ------------------------------------------------------------
 
-    public static void handleExecuteCommand(ServerPlayer player, int handOrdinal, String command) {
+    public static void handleOpenCommandExecutor(ServerPlayer player, ItemSource source) {
         if (player == null) {
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, CommandExecutorItem.class)) {
+        if (!holds(player, source, CommandExecutorItem.class)) {
+            statusKey(player, "message.chaoscycle.not_holding_executor");
+            return;
+        }
+        NetworkHooks.openScreen(player, new CommandExecutorMenuProvider(source), source::encode);
+    }
+
+    public static void handleExecuteCommand(ServerPlayer player, String command) {
+        if (player == null) {
+            return;
+        }
+        if (executorMenu(player) == null) {
             statusKey(player, "message.chaoscycle.not_holding_executor");
             return;
         }
@@ -147,43 +156,6 @@ public final class ServerPacketHandler {
         }
     }
 
-    public static void handleRequestExecutorState(ServerPlayer player, int handOrdinal) {
-        if (player == null) {
-            return;
-        }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, CommandExecutorItem.class)) {
-            statusKey(player, "message.chaoscycle.not_holding_executor");
-            return;
-        }
-        ModNetwork.sendToPlayer(player, new S2CExecutorState(
-                player.gameMode.getGameModeForPlayer().getId()));
-    }
-
-    public static void handleSetGameMode(ServerPlayer player, int handOrdinal, int gameModeId) {
-        if (player == null) {
-            return;
-        }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, CommandExecutorItem.class)) {
-            statusKey(player, "message.chaoscycle.not_holding_executor");
-            return;
-        }
-        GameType gameType = GameType.byId(gameModeId);
-        if (gameType != GameType.SURVIVAL && gameType != GameType.CREATIVE) {
-            statusKey(player, "message.chaoscycle.invalid_gamemode");
-            return;
-        }
-        // 必须走 ServerPlayer#setGameMode：它会发送 ClientboundGameEventPacket.CHANGE_GAME_MODE，
-        // 客户端才会更新自己的游戏模式。只调 ServerPlayerGameMode#changeGameModeForPlayer 的话
-        // 服务端切了、客户端完全不知道（旁观还显示物品栏、生存还能开创造背包）。
-        player.setGameMode(gameType);
-        GameType current = player.gameMode.getGameModeForPlayer();
-        ModNetwork.sendToPlayer(player, new S2CExecutorState(current.getId()));
-        status(player, Component.translatable("message.chaoscycle.gamemode_changed",
-                current.getShortDisplayName()), false);
-    }
-
     /**
      * 服务端 {@code Commands#fillUsableCommands} 是私有的，这里按“参数类型形状”找它，
      * 不依赖方法名，生产环境重混淆后同样可用。
@@ -235,7 +207,7 @@ public final class ServerPacketHandler {
         }
     }
 
-    public static void handleCommandTreeRequest(ServerPlayer player, int handOrdinal, boolean elevated) {
+    public static void handleCommandTreeRequest(ServerPlayer player, boolean elevated) {
         if (player == null) {
             return;
         }
@@ -243,8 +215,7 @@ public final class ServerPacketHandler {
             sendCommandTree(player, -1);
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, CommandExecutorItem.class)) {
+        if (executorMenu(player) == null) {
             statusKey(player, "message.chaoscycle.not_holding_executor");
             return;
         }
@@ -257,12 +228,11 @@ public final class ServerPacketHandler {
     // Portable Hyperspace Locator
     // ------------------------------------------------------------
 
-    public static void handleRequestLocatorState(ServerPlayer player, int handOrdinal) {
+    public static void handleRequestLocatorState(ServerPlayer player, ItemSource source) {
         if (player == null) {
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, HyperspaceLocatorItem.class)) {
+        if (!holds(player, source, HyperspaceLocatorItem.class)) {
             statusKey(player, "message.chaoscycle.not_holding_locator");
             return;
         }
@@ -291,14 +261,13 @@ public final class ServerPacketHandler {
                 : stripped;
     }
 
-    public static void handleAddWaypoint(ServerPlayer player, int handOrdinal, String name,
+    public static void handleAddWaypoint(ServerPlayer player, ItemSource source, String name,
                                          String dimension,
                                          double x, double y, double z, float yaw, float pitch) {
         if (player == null) {
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, HyperspaceLocatorItem.class)) {
+        if (!holds(player, source, HyperspaceLocatorItem.class)) {
             statusKey(player, "message.chaoscycle.not_holding_locator");
             return;
         }
@@ -329,14 +298,13 @@ public final class ServerPacketHandler {
         sendLocatorState(player);
     }
 
-    public static void handleUpdateWaypoint(ServerPlayer player, int handOrdinal, int index,
+    public static void handleUpdateWaypoint(ServerPlayer player, ItemSource source, int index,
                                             String name, double x, double y, double z,
                                             float yaw, float pitch) {
         if (player == null) {
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, HyperspaceLocatorItem.class)) {
+        if (!holds(player, source, HyperspaceLocatorItem.class)) {
             statusKey(player, "message.chaoscycle.not_holding_locator");
             return;
         }
@@ -370,12 +338,11 @@ public final class ServerPacketHandler {
         sendLocatorState(player);
     }
 
-    public static void handleRemoveWaypoint(ServerPlayer player, int handOrdinal, int index) {
+    public static void handleRemoveWaypoint(ServerPlayer player, ItemSource source, int index) {
         if (player == null) {
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, HyperspaceLocatorItem.class)) {
+        if (!holds(player, source, HyperspaceLocatorItem.class)) {
             statusKey(player, "message.chaoscycle.not_holding_locator");
             return;
         }
@@ -392,12 +359,11 @@ public final class ServerPacketHandler {
         sendLocatorState(player, true);
     }
 
-    public static void handleMoveWaypoint(ServerPlayer player, int handOrdinal, int from, int to) {
+    public static void handleMoveWaypoint(ServerPlayer player, ItemSource source, int from, int to) {
         if (player == null) {
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, HyperspaceLocatorItem.class)) {
+        if (!holds(player, source, HyperspaceLocatorItem.class)) {
             statusKey(player, "message.chaoscycle.not_holding_locator");
             return;
         }
@@ -422,12 +388,11 @@ public final class ServerPacketHandler {
         sendLocatorState(player);
     }
 
-    public static void handleTeleportWaypoint(ServerPlayer player, int handOrdinal, int index) {
+    public static void handleTeleportWaypoint(ServerPlayer player, ItemSource source, int index) {
         if (player == null) {
             return;
         }
-        InteractionHand hand = hand(handOrdinal);
-        if (!holding(player, hand, HyperspaceLocatorItem.class)) {
+        if (!holds(player, source, HyperspaceLocatorItem.class)) {
             statusKey(player, "message.chaoscycle.not_holding_locator");
             return;
         }

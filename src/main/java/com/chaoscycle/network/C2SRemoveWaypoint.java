@@ -1,19 +1,20 @@
 package com.chaoscycle.network;
 
+import com.chaoscycle.util.ItemSource;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
-public record C2SRemoveWaypoint(int hand, int index) {
+public record C2SRemoveWaypoint(ItemSource source, int index) {
     public C2SRemoveWaypoint(FriendlyByteBuf buf) {
-        this(buf.readUnsignedByte(), buf.readVarInt());
+        this(ItemSource.decode(buf), buf.readVarInt());
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeByte(hand);
+        source.encode(buf);
         buf.writeVarInt(index);
     }
 
     public void handle(NetworkEvent.Context context) {
-        ServerPacketHandler.handleRemoveWaypoint(context.getSender(), hand, index);
+        ServerPacketHandler.handleRemoveWaypoint(context.getSender(), source, index);
     }
 }

@@ -6,19 +6,17 @@
   "dimension.minecraft.the_nether": "下界",
   "dimension.minecraft.the_end": "末地",
 
-  "tooltip.chaoscycle.command_executor.desc": "调试用控制台兼聊天框，两个按钮切换游戏模式。",
-  "tooltip.chaoscycle.command_executor.modes": "生存 / 创造",
-  "tooltip.chaoscycle.command_executor.command_level": "指令固定以 2 级权限执行（最高 2 级）。",
-
   "gui.chaoscycle.command_executor.title": "便携式命令执行器",
-  "gui.chaoscycle.mode.label": "游戏模式",
   "gui.chaoscycle.gamemode.survival": "生存",
   "gui.chaoscycle.gamemode.creative": "创造",
-  "gui.chaoscycle.command.label": "指令",
+  "gui.chaoscycle.gamemode.adventure": "冒险",
+  "gui.chaoscycle.gamemode.spectator": "旁观",
   "gui.chaoscycle.command.hint": "输入聊天内容；以 / 开头执行指令",
-  "gui.chaoscycle.execute": "执行",
-  "gui.chaoscycle.command_executor.output": "输出",
   "gui.chaoscycle.command_executor.hint": "普通文本作为聊天发送；以 / 开头执行 2 级权限指令（最高 2 级）。",
+  "gui.chaoscycle.page.command_executor": "命令执行器",
+  "gui.chaoscycle.page.pulse": "脉冲宏（预留）",
+  "gui.chaoscycle.page.loop": "循环宏（预留）",
+  "gui.chaoscycle.page.chain": "连锁宏（预留）",
 
   "gui.chaoscycle.locator.title": "便携式超空间定位器",
   "gui.chaoscycle.locator.list": "坐标列表",
@@ -37,12 +35,8 @@
   "message.chaoscycle.not_holding_locator": "你手上没有便携式超空间定位器。",
   "message.chaoscycle.command.empty": "输入为空。",
   "message.chaoscycle.command.too_long": "指令过长（最多 256 个字符）。",
-  "message.chaoscycle.command.sent": "指令已发送。",
   "message.chaoscycle.command.result": "指令执行完成，返回值 %s。",
   "message.chaoscycle.command.failed": "指令执行失败：%s",
-  "message.chaoscycle.gamemode_switching": "正在切换游戏模式……",
-  "message.chaoscycle.gamemode_changed": "已切换为 %s。",
-  "message.chaoscycle.invalid_gamemode": "无效的游戏模式。",
   "message.chaoscycle.invalid_dimension": "无效或未知维度：%s",
   "message.chaoscycle.invalid_position": "坐标无效（必须是有限值，且位于世界边界与高度范围内）。",
   "message.chaoscycle.stored_position_invalid": "存储的坐标超出目标维度的有效范围。",
@@ -59,6 +53,7 @@
   "message.chaoscycle.teleporting": "正在传送……",
   "message.chaoscycle.teleported": "已传送到 %s。",
 
-  "key.chaoscycle.open_gui": "打开混沌时序界面",
+  "key.chaoscycle.open_command_executor": "打开命令执行器",
+  "key.chaoscycle.open_hyperspace_locator": "打开超空间定位器",
   "key.categories.chaoscycle": "混沌时序"
 }

@@ -13,13 +13,13 @@ import com.chaoscycle.network.C2SUpdateWaypoint;
 import com.chaoscycle.network.ModNetwork;
 import com.chaoscycle.network.S2CLocatorState;
 import com.chaoscycle.network.WaypointEntry;
+import com.chaoscycle.util.ItemSource;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.List;
@@ -56,7 +56,7 @@ public class HyperspaceLocatorScreen extends Screen {
     private static final int TEXT_TOP = 188;
     private static final int TEXT_WIDTH = 348;   // 右边界与最右侧大按钮对齐（355）
 
-    private final InteractionHand hand;
+    private final ItemSource source;
     private WaypointListWidget waypointList;
     private EditBox nameField;
     private EditBox xField;
@@ -73,9 +73,9 @@ public class HyperspaceLocatorScreen extends Screen {
     private int left;
     private int top;
 
-    public HyperspaceLocatorScreen(InteractionHand hand) {
+    public HyperspaceLocatorScreen(ItemSource source) {
         super(Component.translatable("gui.chaoscycle.locator.title"));
-        this.hand = hand;
+        this.source = source;
     }
 
     @Override
@@ -94,7 +94,7 @@ public class HyperspaceLocatorScreen extends Screen {
                 LIST_X, LIST_Y, LIST_W, LIST_H, Component.empty()));
         this.waypointList.setOnSelect(index -> loadSelected());
         this.waypointList.setOnReorder((from, to) -> {
-            ModNetwork.sendToServer(new C2SMoveWaypoint(this.hand.ordinal(), from, to));
+            ModNetwork.sendToServer(new C2SMoveWaypoint(this.source, from, to));
             this.status = Component.translatable("message.chaoscycle.saving");
         });
 
@@ -120,7 +120,7 @@ public class HyperspaceLocatorScreen extends Screen {
                 Component.translatable("gui.chaoscycle.locator.remove"), this::removeSelected));
 
         setSelectionButtons(false);
-        ModNetwork.sendToServer(new C2SRequestLocatorState(this.hand.ordinal()));
+        ModNetwork.sendToServer(new C2SRequestLocatorState(this.source));
     }
 
     /** 虚拟坐标（面板左上角为 0,0）；无边框 EditBox 覆盖在贴图字段上。 */
@@ -217,7 +217,7 @@ public class HyperspaceLocatorScreen extends Screen {
             this.status = Component.translatable("message.chaoscycle.invalid_dimension", "");
             return;
         }
-        ModNetwork.sendToServer(new C2SAddWaypoint(this.hand.ordinal(),
+        ModNetwork.sendToServer(new C2SAddWaypoint(this.source,
                 this.nameField.getValue().strip(), dimension,
                 player.getX(), player.getY(), player.getZ(),
                 player.getYRot(), player.getXRot()));
@@ -238,7 +238,7 @@ public class HyperspaceLocatorScreen extends Screen {
             this.status = Component.translatable("message.chaoscycle.invalid_position");
             return;
         }
-        ModNetwork.sendToServer(new C2SUpdateWaypoint(this.hand.ordinal(),
+        ModNetwork.sendToServer(new C2SUpdateWaypoint(this.source,
                 this.waypointList.getSelectedIndex(), this.nameField.getValue().strip(),
                 x, y, z, entry.yaw(), entry.pitch()));
         this.status = Component.translatable("message.chaoscycle.saving");
@@ -250,7 +250,7 @@ public class HyperspaceLocatorScreen extends Screen {
             this.status = Component.translatable("message.chaoscycle.no_selected_waypoint");
             return;
         }
-        ModNetwork.sendToServer(new C2STeleportWaypoint(this.hand.ordinal(),
+        ModNetwork.sendToServer(new C2STeleportWaypoint(this.source,
                 this.waypointList.getSelectedIndex()));
         this.status = Component.translatable("message.chaoscycle.teleporting");
     }
@@ -261,7 +261,7 @@ public class HyperspaceLocatorScreen extends Screen {
             this.status = Component.translatable("message.chaoscycle.no_selected_waypoint");
             return;
         }
-        ModNetwork.sendToServer(new C2SRemoveWaypoint(this.hand.ordinal(),
+        ModNetwork.sendToServer(new C2SRemoveWaypoint(this.source,
                 this.waypointList.getSelectedIndex()));
         this.status = Component.translatable("message.chaoscycle.removing");
     }
@@ -273,7 +273,7 @@ public class HyperspaceLocatorScreen extends Screen {
     @Override
     public void tick() {
         Player player = Minecraft.getInstance().player;
-        if (player == null || !(player.getItemInHand(this.hand).getItem() instanceof HyperspaceLocatorItem)) {
+        if (player == null || !this.source.matches(player, HyperspaceLocatorItem.class)) {
             onClose();
             return;
         }

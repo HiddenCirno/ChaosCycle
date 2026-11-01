@@ -1,18 +1,19 @@
 package com.chaoscycle.network;
 
+import com.chaoscycle.util.ItemSource;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 
-public record C2SRequestLocatorState(int hand) {
+public record C2SRequestLocatorState(ItemSource source) {
     public C2SRequestLocatorState(FriendlyByteBuf buf) {
-        this(buf.readUnsignedByte());
+        this(ItemSource.decode(buf));
     }
 
     public void encode(FriendlyByteBuf buf) {
-        buf.writeByte(hand);
+        source.encode(buf);
     }
 
     public void handle(NetworkEvent.Context context) {
-        ServerPacketHandler.handleRequestLocatorState(context.getSender(), hand);
+        ServerPacketHandler.handleRequestLocatorState(context.getSender(), source);
     }
 }

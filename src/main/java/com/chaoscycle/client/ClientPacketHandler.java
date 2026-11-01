@@ -4,7 +4,6 @@ import com.chaoscycle.client.screen.CommandExecutorScreen;
 import com.chaoscycle.client.screen.HyperspaceLocatorScreen;
 import com.chaoscycle.network.S2CCommandOutput;
 import net.minecraft.network.chat.Component;
-import com.chaoscycle.network.S2CExecutorState;
 import com.chaoscycle.network.S2CLocatorState;
 import com.chaoscycle.network.S2CStatus;
 import net.minecraft.client.Minecraft;
@@ -18,15 +17,6 @@ public final class ClientPacketHandler {
         minecraft.execute(() -> {
             if (minecraft.screen instanceof HyperspaceLocatorScreen screen) {
                 screen.applyState(state);
-            }
-        });
-    }
-
-    public static void handleExecutorState(S2CExecutorState state) {
-        Minecraft minecraft = Minecraft.getInstance();
-        minecraft.execute(() -> {
-            if (minecraft.screen instanceof CommandExecutorScreen screen) {
-                screen.applyGameMode(state.gameModeId());
             }
         });
     }
